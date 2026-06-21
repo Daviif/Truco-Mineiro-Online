@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Truco Mineiro Online</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Caveat:wght@500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="salao">
+    <header class="cabecalho">
+      <h1 class="logo">Truco <span class="logo-acento">Mineiro</span></h1>
+      <p class="subtitulo">a mesa do boteco, direto pro seu navegador</p>
+    </header>
+
+    <section id="secao-login" class="painel painel-estreito">
+      <h2 class="painel-titulo">Sentar à mesa</h2>
+      <div class="campo-login">
+        <input id="input-nickname" type="text" placeholder="Seu nome de jogo" maxlength="20" />
+        <button id="btn-login" class="botao botao-primario">Entrar</button>
+      </div>
+      <p id="aviso-login" class="texto-erro"></p>
+    </section>
+
+    <section id="secao-mesas" class="painel painel-estreito escondido">
+      <h2 class="painel-titulo">Escolha uma mesa</h2>
+      <div class="opcoes-modo">
+        <button class="botao botao-modo" data-modo="2">2 jogadores</button>
+        <button class="botao botao-modo" data-modo="4">4 jogadores</button>
+        <button class="botao botao-modo" data-modo="6">6 jogadores</button>
+        <button class="botao botao-modo" data-modo="8">8 jogadores</button>
+      </div>
+      <button id="btn-atualizar-mesas" class="botao botao-link">Atualizar lista de mesas</button>
+      <ul id="lista-mesas" class="lista-mesas"></ul>
+    </section>
+
+    <section id="secao-mesa-atual" class="cena-mesa escondido">
+      <div class="barra-mesa">
+        <span class="etiqueta-mesa">Mesa <strong id="info-mesa-id"></strong></span>
+        <span class="etiqueta-status" id="info-mesa-status"></span>
+        <button id="btn-sair" class="botao botao-saida">Sair</button>
+      </div>
+
+      <div id="painel-aguardando" class="painel-aguardando escondido">
+        <p id="texto-aguardando"></p>
+        <button id="btn-completar-bots" class="botao botao-secundario">Completar com bots</button>
+      </div>
+
+      <div id="painel-jogo" class="palco-jogo escondido">
+        <div class="tentos">
+          <div class="tento tento-nos">
+            <span class="tento-rotulo">Nós</span>
+            <div class="tento-buracos" id="buracos-nos"></div>
+          </div>
+          <div class="tento tento-eles">
+            <span class="tento-rotulo">Eles</span>
+            <div class="tento-buracos" id="buracos-eles"></div>
+          </div>
+        </div>
+
+        <div id="equipes" class="equipes">
+          <div class="equipe-coluna equipe-coluna-nos">
+            <span class="equipe-titulo">Nós</span>
+            <span id="lista-equipe-nos" class="equipe-membros"></span>
+          </div>
+          <div class="equipe-coluna equipe-coluna-eles">
+            <span class="equipe-titulo">Eles</span>
+            <span id="lista-equipe-eles" class="equipe-membros"></span>
+          </div>
+        </div>
+
+        <div class="mesa">
+          <div id="assentos" class="assentos"></div>
+
+          <div class="centro-mesa">
+            <div class="selo-valor">
+              <span class="selo-rotulo">vale</span>
+              <span id="valor-mao" class="selo-numero">-</span>
+            </div>
+            <div id="jogadas-centro" class="jogadas-centro"></div>
+          </div>
+
+          <div id="painel-corte" class="aviso-mesa escondido">
+            <p id="texto-corte" class="aviso-texto"></p>
+            <div class="aviso-acoes">
+              <button id="btn-corte-descer" class="botao botao-secundario">Descer (pega de cima)</button>
+              <button id="btn-corte-subir" class="botao botao-secundario">Subir (pega de baixo)</button>
+            </div>
+          </div>
+
+          <div id="painel-mao-especial" class="aviso-mesa escondido">
+            <p id="texto-mao-especial" class="aviso-texto"></p>
+            <div id="painel-decisao-mao-10" class="aviso-acoes escondido">
+              <button id="btn-decidir-jogar" class="botao botao-primario">Jogar a mão</button>
+              <button id="btn-decidir-correr" class="botao botao-secundario">Correr</button>
+            </div>
+          </div>
+
+          <div id="pedido-pendente" class="aviso-mesa aviso-pedido escondido">
+            <p id="texto-pedido" class="aviso-texto"></p>
+            <div id="pedido-acoes" class="aviso-acoes">
+              <button id="btn-aceitar" class="botao botao-primario">Aceitar</button>
+              <button id="btn-correr" class="botao botao-secundario">Correr</button>
+              <button id="btn-aumentar" class="botao botao-secundario">Aumentar</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="painel-parceiros" class="painel-parceiros escondido">
+          <span class="parceiros-rotulo">Mão de 10 — cartas dos parceiros:</span>
+          <div id="lista-parceiros" class="lista-parceiros"></div>
+        </div>
+
+        <div class="barra-acoes">
+          <span class="vez-pill" id="info-vez"></span>
+          <button id="btn-truco" class="botao botao-truco">TRUCO!</button>
+        </div>
+      </div>
+
+      <div id="resultado-rodada" class="cartaz-evento"></div>
+      <div id="resultado-mao" class="cartaz-evento"></div>
+      <p id="fim-partida" class="cartaz-fim escondido"></p>
+    </section>
+
+    <p id="ultimo-aviso" class="aviso-flutuante"></p>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>
