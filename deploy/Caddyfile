@@ -1,0 +1,8 @@
+# Configuração do Caddy: HTTPS automático (certificado Let's Encrypt, com
+# renovação automática) na frente do bridge web, que fica só em localhost.
+#
+# Instalar em /etc/caddy/Caddyfile no droplet.
+
+truco-mineiro.duckdns.org {
+	reverse_proxy 127.0.0.1:8080
+}

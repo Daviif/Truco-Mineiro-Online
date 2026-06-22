@@ -86,7 +86,12 @@
             <div id="jogadas-centro" class="jogadas-centro"></div>
           </div>
 
-          <div id="painel-corte" class="aviso-mesa escondido">
+          <div id="animacao-mao" class="animacao-mao escondido">
+            <div id="animacao-mao-grafico" class="animacao-mao-grafico"></div>
+            <p id="animacao-mao-texto" class="aviso-texto"></p>
+          </div>
+
+          <div id="painel-corte" class="aviso-mesa aviso-corte escondido">
             <p id="texto-corte" class="aviso-texto"></p>
             <div class="aviso-acoes">
               <button id="btn-corte-descer" class="botao botao-secundario">Descer (pega de cima)</button>
@@ -130,6 +135,17 @@
 
     <p id="ultimo-aviso" class="aviso-flutuante"></p>
   </div>
+
+  <div id="modal-confirmar-saida" class="modal-fundo escondido">
+    <div class="aviso-mesa modal-caixa">
+      <p id="texto-confirmar-saida" class="aviso-texto"></p>
+      <div class="aviso-acoes">
+        <button id="btn-confirmar-saida" class="botao botao-saida">Sim, sair</button>
+        <button id="btn-cancelar-saida" class="botao botao-secundario">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/app.js"></script>
 </body>
 </html>

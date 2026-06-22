@@ -213,9 +213,135 @@
     NW: { x: -0.7, y: -0.7 },
   };
 
+  // -- animação de início de mão: embaralhar -> cortar -> entregar -----------
+  // Sequência decorativa só do lado do cliente: o jogo real já resolveu tudo
+  // no servidor instantaneamente, isso só atrasa a revelação visual pra
+  // ficar legível. `faseAnimacaoMao` é lido pelas funções de renderização
+  // pra esconder o corte/a mão de verdade enquanto a sequência roda.
+  const DURACAO_EMBARALHAR = 1300;
+  const DURACAO_CORTAR = 700;
+  const DURACAO_ENTREGAR = 750;
+
+  let faseAnimacaoMao = null; // null | "embaralhando" | "cortando" | "entregando"
+  let jaTeveEstadoAnterior = false;
+  let pedidoCorteAnteriorTruthy = false;
+  let totalCartasAnterior = 0;
+  let timersAnimacaoMao = [];
+
+  function limparTimersAnimacaoMao() {
+    timersAnimacaoMao.forEach(clearTimeout);
+    timersAnimacaoMao = [];
+  }
+
+  function agendarAnimacaoMao(fn, ms) {
+    timersAnimacaoMao.push(setTimeout(fn, ms));
+  }
+
+  // dispara exatamente quando PEDIDO_CORTE aparece (true->false) — é nesse
+  // momento que o servidor já embaralhou de verdade e abriu a fase de corte
+  // (vale tanto pra mão normal quanto mão de ferro, e pra mão de 10 que
+  // acabou de decidir "jogar").
+  function detectarInicioCorte(estado) {
+    const agora = !!estado.pedido_corte;
+    const mudou = jaTeveEstadoAnterior && agora && !pedidoCorteAnteriorTruthy;
+    pedidoCorteAnteriorTruthy = agora;
+    return mudou;
+  }
+
+  // dispara quando a mão (cartas na mão) vai de vazia pra cheia: é exatamente
+  // o INICIO_PARTIDA depois do corte, com as cartas já distribuídas.
+  function detectarNovoDeal(estado) {
+    const total = (estado.mao || []).length;
+    const novo = jaTeveEstadoAnterior && total > 0 && totalCartasAnterior === 0;
+    totalCartasAnterior = total;
+    return novo;
+  }
+
+  function tocarSequenciaEmbaralhar() {
+    limparTimersAnimacaoMao();
+    faseAnimacaoMao = "embaralhando";
+    renderizar(estadoAtual);
+    agendarAnimacaoMao(function () {
+      faseAnimacaoMao = null;
+      renderizar(estadoAtual);
+    }, DURACAO_EMBARALHAR);
+  }
+
+  function tocarSequenciaCortarEEntregar() {
+    limparTimersAnimacaoMao();
+    faseAnimacaoMao = "cortando";
+    renderizar(estadoAtual);
+    agendarAnimacaoMao(function () {
+      faseAnimacaoMao = "entregando";
+      renderizar(estadoAtual);
+      agendarAnimacaoMao(function () {
+        faseAnimacaoMao = null;
+        renderizar(estadoAtual);
+      }, DURACAO_ENTREGAR);
+    }, DURACAO_CORTAR);
+  }
+
+  function renderizarAnimacaoMao(direcaoPorJogador) {
+    const painel = el("animacao-mao");
+    const grafico = el("animacao-mao-grafico");
+    if (!faseAnimacaoMao) {
+      painel.classList.add("escondido");
+      limpar(grafico);
+      return;
+    }
+    painel.classList.remove("escondido");
+    limpar(grafico);
+
+    if (faseAnimacaoMao === "embaralhando") {
+      el("animacao-mao-texto").textContent = "Embaralhando...";
+      for (let i = 0; i < 5; i++) {
+        const carta = criarCarta("", { mini: true, virada: true, rotuloOculto: "" });
+        carta.classList.add("embaralhando");
+        carta.style.animationDelay = i * 0.06 + "s";
+        carta.style.setProperty("--ty", i * 1.5 + "px");
+        carta.style.transform = "translateY(" + i * 1.5 + "px)";
+        grafico.appendChild(carta);
+      }
+    } else if (faseAnimacaoMao === "cortando") {
+      el("animacao-mao-texto").textContent = "Cortando o baralho...";
+      for (let i = 0; i < 3; i++) {
+        const esquerda = criarCarta("", { mini: true, virada: true, rotuloOculto: "" });
+        esquerda.classList.add("pilha-esquerda");
+        esquerda.style.transform = "translate(-6px, " + i * 1.5 + "px)";
+        grafico.appendChild(esquerda);
+      }
+      for (let i = 0; i < 3; i++) {
+        const direita = criarCarta("", { mini: true, virada: true, rotuloOculto: "" });
+        direita.classList.add("pilha-direita");
+        direita.style.transform = "translate(6px, " + i * 1.5 + "px)";
+        grafico.appendChild(direita);
+      }
+    } else if (faseAnimacaoMao === "entregando") {
+      el("animacao-mao-texto").textContent = "Distribuindo as cartas...";
+      const direcoes = Object.keys(direcaoPorJogador || {});
+      direcoes.forEach(function (nick, indice) {
+        const direcao = direcaoPorJogador[nick];
+        const voo = VOO_POR_DIRECAO[direcao] || VOO_POR_DIRECAO.S;
+        const carta = criarCarta("", { mini: true, virada: true, rotuloOculto: "" });
+        carta.classList.add("entregando");
+        carta.style.setProperty("--voo-x", voo.x.toFixed(2));
+        carta.style.setProperty("--voo-y", voo.y.toFixed(2));
+        carta.style.animationDelay = indice * 0.08 + "s";
+        grafico.appendChild(carta);
+      });
+    }
+  }
+
   // -- renderização principal -------------------------------------------------
 
+  let estadoAtual = null;
+
   function renderizar(estado) {
+    const iniciouCorte = detectarInicioCorte(estado);
+    const novoDeal = detectarNovoDeal(estado);
+    jaTeveEstadoAnterior = true;
+
+    estadoAtual = estado;
     meuNickname = estado.nickname;
 
     el("secao-login").classList.toggle("escondido", !!estado.logado);
@@ -241,6 +367,11 @@
         renderizarAguardando(estado);
       }
     }
+
+    // dispara a sequência depois de renderizar o estado normal por baixo,
+    // pra já existir DOM (assentos, cartas) pra animação cobrir/esconder.
+    if (iniciouCorte) tocarSequenciaEmbaralhar();
+    else if (novoDeal) tocarSequenciaCortarEEntregar();
   }
 
   function renderizarAguardando(estado) {
@@ -298,8 +429,29 @@
     renderizarCartasParceiros(estado, modo);
     renderizarPedido(estado, meuEquipe);
     renderizarResultados(estado, meuEquipe);
+    renderizarAnimacaoMao(direcaoPorJogador);
+    atualizarBotaoTruco(estado, meuEquipe);
+  }
 
-    el("btn-truco").disabled = !!estado.pedido_pendente || !!estado.mao_especial;
+  // valor atual da mão -> nome do próximo pedido na escalada (mesma
+  // progressão de common/game.py: ESCALACAO = truco(4) -> seis(6) ->
+  // nove(10) -> doze(12); valor inicial é 2, sem ninguém apostado ainda).
+  const VALOR_DOZE = 12;
+  const PROXIMO_PEDIDO_POR_VALOR = { 2: "TRUCO!", 4: "SEIS!", 6: "NOVE!", 10: "DOZE!" };
+
+  function atualizarBotaoTruco(estado, meuEquipe) {
+    const btn = el("btn-truco");
+    const valorAtual = Number(estado.valor_mao != null ? estado.valor_mao : 2);
+    // quem "tem a palavra" no valor atual — só ela fica bloqueada de pedir
+    // de novo; a outra equipe é quem pode escalar (ver server/game.py:
+    // Partida.equipe_apostou).
+    const equipeComAPalavra = estado.equipe_apostou != null ? Number(estado.equipe_apostou) : null;
+    const minhaEquipeTemAPalavra = equipeComAPalavra !== null && equipeComAPalavra === meuEquipe;
+    const atingiuMaximo = valorAtual >= VALOR_DOZE;
+    const bloqueadoPorOutroMotivo = !!estado.pedido_pendente || !!estado.mao_especial || !!faseAnimacaoMao;
+
+    btn.textContent = PROXIMO_PEDIDO_POR_VALOR[valorAtual] || "TRUCO!";
+    btn.disabled = bloqueadoPorOutroMotivo || minhaEquipeTemAPalavra || atingiuMaximo;
   }
 
   function montarListaEquipe(idElemento, jogadores, equipe) {
@@ -351,13 +503,19 @@
       const maoNaMesa = document.createElement("div");
       maoNaMesa.className = "mao-na-mesa";
 
+      // enquanto a sequência de embaralhar/cortar/entregar roda, esconde a
+      // mão de todo mundo (a minha de verdade e os versos das dos outros) —
+      // só aparece quando a animação de entrega termina.
+      const escondendoMaoPelaAnimacao = faseAnimacaoMao === "cortando" || faseAnimacaoMao === "entregando";
+
       if (ehEu) {
         maoNaMesa.classList.add("leque");
         maoNaMesa.id = "mao-jogador";
-        const mao = estado.mao || [];
+        const mao = escondendoMaoPelaAnimacao ? [] : estado.mao || [];
         const n = mao.length;
         const anguloTotal = Math.min(26, n * 7);
-        const desabilitada = !minhaVez || !!estado.pedido_pendente || !!estado.pedido_corte || !!estado.mao_especial;
+        const desabilitada =
+          !minhaVez || !!estado.pedido_pendente || !!estado.pedido_corte || !!estado.mao_especial || !!faseAnimacaoMao;
         mao.forEach(function (carta, indice) {
           const t = n > 1 ? indice / (n - 1) : 0.5;
           const rot = -anguloTotal / 2 + anguloTotal * t;
@@ -378,7 +536,7 @@
           maoNaMesa.appendChild(btn);
         });
       } else {
-        const restantes = cartasRestantes(nick, cartasMesa);
+        const restantes = escondendoMaoPelaAnimacao ? 0 : cartasRestantes(nick, cartasMesa);
         for (let c = 0; c < restantes; c++) {
           maoNaMesa.appendChild(criarCarta("", { mini: true, virada: true, rotuloOculto: "" }));
         }
@@ -504,7 +662,9 @@
 
   function renderizarAvisoCorte(estado) {
     const painel = el("painel-corte");
-    if (estado.pedido_corte) {
+    // escondido durante a animação de embaralhar, mesmo que o pedido de
+    // corte já tenha chegado de verdade — só aparece quando ela termina.
+    if (estado.pedido_corte && faseAnimacaoMao !== "embaralhando") {
       painel.classList.remove("escondido");
       const souEu = estado.pedido_corte === meuNickname;
       el("texto-corte").textContent = souEu
@@ -664,8 +824,35 @@
   el("btn-aumentar").addEventListener("click", function () {
     post("/aumentar");
   });
+  // mesmo prefixo usado pelo servidor (common/constants.py:PREFIXO_NICKNAME_BOT)
+  // pra reconhecer bots só pelo nickname — aqui é só pra escolher o texto
+  // do aviso; a decisão de desfazer a mesa de verdade é sempre do servidor.
+  const PREFIXO_NICKNAME_BOT = "Bot";
+
   el("btn-sair").addEventListener("click", function () {
-    post("/sair");
+    const jogadores = (estadoAtual && estadoAtual.mesa && estadoAtual.mesa.jogadores) || [];
+    const outrosHumanos = jogadores.filter(function (nick) {
+      return nick !== meuNickname && nick.indexOf(PREFIXO_NICKNAME_BOT) !== 0;
+    });
+    el("texto-confirmar-saida").textContent =
+      outrosHumanos.length === 0
+        ? "Só tem bots com você nessa mesa — ao sair, a mesa será desfeita. Quer mesmo sair?"
+        : "A mesa vai continuar para os outros jogadores. Quer mesmo sair?";
+    el("modal-confirmar-saida").classList.remove("escondido");
+  });
+
+  el("btn-cancelar-saida").addEventListener("click", function () {
+    el("modal-confirmar-saida").classList.add("escondido");
+  });
+
+  el("btn-confirmar-saida").addEventListener("click", function () {
+    el("btn-confirmar-saida").disabled = true;
+    post("/sair").then(function () {
+      // recarrega pra abrir uma sessão (e um EventSource) limpa — a sessão
+      // antiga foi descartada no servidor, então a aba não veria mais
+      // atualização nenhuma se só esperasse o próximo evento.
+      window.location.reload();
+    });
   });
 
   conectarEventos();

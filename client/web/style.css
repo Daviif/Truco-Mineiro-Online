@@ -704,8 +704,34 @@ input[type="text"] {
   box-shadow: 0 16px 32px var(--sombra);
 }
 
+/* modal de confirmação (sair da mesa): cobre a página inteira, então
+funciona em qualquer tela — esperando jogadores ou já em jogo — sem
+depender do contêiner `.mesa` que só existe durante a partida. */
+.modal-fundo {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.modal-fundo .modal-caixa {
+  position: static;
+  transform: none;
+}
+
 .aviso-pedido {
   border-color: var(--vinho);
+}
+
+/* corte do baralho: fora do centro da mesa (que fica ocupado pelas cartas
+jogadas e pela animação de embaralhar/cortar/entregar) — ancorado perto do
+topo em vez de no meio. */
+.aviso-corte {
+  top: 24%;
+  transform: translate(-50%, 0);
 }
 
 .aviso-texto {
@@ -722,6 +748,110 @@ input[type="text"] {
   gap: 0.5rem;
   justify-content: center;
   flex-wrap: wrap;
+}
+
+/* animação de início de mão: embaralhar -> cortar -> entregar, encadeadas
+pelo app.js. Cobre a mesa inteira (igual ao .modal-fundo, mas só dentro da
+área de jogo) pra esconder o corte/a mão real até a sequência terminar. */
+.animacao-mao {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  pointer-events: none;
+  background: rgba(18, 13, 9, 0.35);
+  border-radius: 12px;
+}
+
+.animacao-mao .aviso-texto {
+  color: var(--marfim);
+  background: rgba(0, 0, 0, 0.45);
+  padding: 0.3rem 0.9rem;
+  border-radius: 8px;
+  margin: 0;
+}
+
+.animacao-mao-grafico {
+  position: relative;
+  width: 100px;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.animacao-mao-grafico .carta--mini {
+  position: absolute;
+}
+
+.animacao-mao-grafico .carta--mini.embaralhando {
+  animation: embaralhar-jiggle 0.45s ease-in-out infinite;
+}
+
+@keyframes embaralhar-jiggle {
+  0%,
+  100% {
+    transform: translateX(0) rotate(0deg);
+  }
+  25% {
+    transform: translateX(-7px) rotate(-9deg);
+  }
+  75% {
+    transform: translateX(7px) rotate(9deg);
+  }
+}
+
+.animacao-mao-grafico .carta--mini.pilha-esquerda {
+  animation: cortar-pilha-esquerda 0.7s ease-in-out;
+}
+
+.animacao-mao-grafico .carta--mini.pilha-direita {
+  animation: cortar-pilha-direita 0.7s ease-in-out;
+}
+
+@keyframes cortar-pilha-esquerda {
+  0%,
+  100% {
+    transform: translateX(0) rotate(0deg);
+  }
+  50% {
+    transform: translateX(-24px) rotate(-6deg);
+  }
+}
+
+@keyframes cortar-pilha-direita {
+  0%,
+  100% {
+    transform: translateX(0) rotate(0deg);
+  }
+  50% {
+    transform: translateX(24px) rotate(6deg);
+  }
+}
+
+.animacao-mao-grafico .carta--mini.entregando {
+  animation: entregar-carta 0.6s ease-in forwards;
+}
+
+@keyframes entregar-carta {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(var(--voo-x, 0) * 130px), calc(var(--voo-y, 0) * 130px)) scale(0.55);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animacao-mao-grafico .carta--mini {
+    animation: none !important;
+  }
 }
 
 /* ---------- cards ---------- */

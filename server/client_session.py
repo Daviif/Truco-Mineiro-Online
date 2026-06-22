@@ -1,6 +1,8 @@
 """Sessão de um cliente conectado ao servidor: parsing de mensagens,
 despacho para a lógica de jogo e notificação dos demais jogadores da mesa."""
 
+import socket
+
 from common import constants
 from common.protocol import MessageReader, encode
 from server import game
@@ -21,6 +23,23 @@ class ClientSession:
     def enviar(self, tipo, *campos):
         try:
             self.conn.sendall(encode(tipo, *campos))
+        except OSError:
+            pass
+
+    def fechar(self):
+        """Encerra a conexão à força, de outra thread (ex: bot cuja mesa foi
+        desfeita pelo jogador humano que saiu). `shutdown()` é o que de fato
+        acorda a thread desta sessão bloqueada em `recv()` — `close()` por si
+        só, chamado de uma thread diferente da que está bloqueada nele, não
+        garante isso no Linux (a thread podia ficar travada em `recv()` pra
+        sempre). O loop de `executar()` percebe o socket encerrado, roda
+        `_desconectar()` e termina a thread normalmente."""
+        try:
+            self.conn.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+        try:
+            self.conn.close()
         except OSError:
             pass
 
@@ -286,9 +305,19 @@ class ClientSession:
     def _notificar_estado_rodada(self, mesa):
         partida = mesa.partida
         cartas_csv = ",".join(f"{j}:{c}" for j, c in partida.cartas_rodada)
+        # equipe_apostou: quem "tem a palavra" no valor atual da mão — só ela
+        # fica bloqueada de pedir aumento de novo; vazio quando ninguém
+        # ainda apostou nesta mão (valor no inicial). Repassado pro cliente
+        # decidir o texto/bloqueio do botão de truco (truco/seis/nove/doze).
+        equipe_apostou = partida.equipe_apostou if partida.equipe_apostou is not None else ""
         for jogador in mesa.jogadores:
             self.servidor.enviar_para(
-                jogador, constants.ESTADO_RODADA, partida.jogador_da_vez, cartas_csv, partida.valor_mao
+                jogador,
+                constants.ESTADO_RODADA,
+                partida.jogador_da_vez,
+                cartas_csv,
+                partida.valor_mao,
+                equipe_apostou,
             )
 
     def _notificar_pedido(self, mesa):
@@ -335,5 +364,12 @@ class ClientSession:
         if mesa is not None:
             for jogador in mesa.jogadores:
                 self.servidor.enviar_para(jogador, constants.JOGADOR_SAIU, self.nickname)
+            if not mesa.tem_humano():
+                # não sobrou nenhum humano (só bots, ou mesa ficou vazia) —
+                # desfaz a mesa e desliga os bots que sobraram, já que não
+                # tem mais ninguém pra jogar com eles.
+                for jogador in list(mesa.jogadores):
+                    self.servidor.desconectar_forcado(jogador)
+                self.servidor.room_manager.remover_mesa(mesa.id)
         self.servidor.remover(self.nickname)
         self.nickname = None

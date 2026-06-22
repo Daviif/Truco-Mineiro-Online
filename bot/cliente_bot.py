@@ -102,9 +102,14 @@ class ClienteBot:
         a thread que recebe mensagens do servidor (`escutar`/`_processar`):
         o atraso roda numa thread própria do `threading.Timer`, e o callback
         revalida o estado mais atual do bot antes de agir (pode já ter
-        mudado entre o agendamento e a execução)."""
+        mudado entre o agendamento e a execução). `daemon=True` pra esse
+        temporizador não manter o processo vivo se a conexão cair (ex: mesa
+        desfeita pelo servidor) antes dele disparar — sem isso, o bot só
+        encerrava até `RETARDO_MAX_SEGUNDOS` depois da desconexão."""
         atraso = random.uniform(RETARDO_MIN_SEGUNDOS, RETARDO_MAX_SEGUNDOS)
-        threading.Timer(atraso, callback).start()
+        temporizador = threading.Timer(atraso, callback)
+        temporizador.daemon = True
+        temporizador.start()
 
     # -- processamento de mensagens do servidor ------------------------------
 
@@ -239,7 +244,7 @@ class ClienteBot:
         return resultado
 
     def _tratar_estado_rodada(self, campos):
-        vez, cartas_csv, valor = campos
+        vez, cartas_csv, valor, _equipe_apostou = campos
         self.cartas_rodada_atual = _parse_cartas_csv(cartas_csv)
         self.vez = vez
         self.valor_mao = valor
@@ -330,7 +335,7 @@ class ClienteBot:
 def main():
     host = sys.argv[1] if len(sys.argv) > 1 else HOST_PADRAO
     porta = int(sys.argv[2]) if len(sys.argv) > 2 else PORTA_PADRAO
-    nickname = sys.argv[3] if len(sys.argv) > 3 else f"Bot{random.randint(100, 999)}"
+    nickname = sys.argv[3] if len(sys.argv) > 3 else f"{constants.PREFIXO_NICKNAME_BOT}{random.randint(100, 999)}"
     modo = int(sys.argv[4]) if len(sys.argv) > 4 else MODO_PADRAO
 
     bot = ClienteBot(host, porta, nickname, modo)

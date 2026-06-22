@@ -50,6 +50,12 @@ class Mesa:
         if self.status == EM_ANDAMENTO:
             self.status = INTERROMPIDA
 
+    def tem_humano(self):
+        """False se a mesa estiver vazia ou só tiver bots (nickname com o
+        prefixo de bot) — usado pra decidir se a mesa deve ser desfeita
+        quando o último jogador humano sai."""
+        return any(not jogador.startswith(constants.PREFIXO_NICKNAME_BOT) for jogador in self.jogadores)
+
     def resumo(self):
         return {
             "id": self.id,
@@ -101,3 +107,8 @@ class RoomManager:
                     mesa.remover(nickname)
                     return mesa
             return None
+
+    def remover_mesa(self, id_mesa):
+        """Desfaz a mesa de vez (ex: não sobrou nenhum jogador humano)."""
+        with self._lock:
+            self._mesas.pop(id_mesa, None)

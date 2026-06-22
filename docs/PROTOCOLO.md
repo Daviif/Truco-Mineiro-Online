@@ -49,13 +49,20 @@ jogadores), `JK1`/`JK2` (coringas, só nos modos de 6/8 jogadores).
 | `MAO_ESPECIAL` | `tipo;equipe_decisora` | `tipo` é `MAO_DE_10` (uma equipe com 10+ pontos; `equipe_decisora` decide `DECIDIR_MAO_10`) ou `MAO_DE_FERRO` (ambas com 10+; `equipe_decisora` vazio). Em ambos os casos truco fica bloqueado. |
 | `INICIO_PARTIDA` | `mao;vez;valor_mao` | Início de uma mão nova: a própria mão do destinatário (`,`-separada), de quem é a vez e o valor em jogo. Na mão de ferro, vem com `?` no lugar de cada carta (oculta); o jogador joga por posição (`JOGAR_CARTA;1`, `;2` ou `;3`). |
 | `CARTAS_PARCEIROS` | `parceiros` (`jogador:carta,carta,carta` separados por `\|`) | Só na mão de 10, só para o jogador-vidente (ver seção abaixo): revela a mão completa de cada parceiro. |
-| `ESTADO_RODADA` | `vez;cartas_na_mesa;valor_mao` | Estado da rodada em andamento (`cartas_na_mesa` como `jogador:carta` separados por `,`). |
+| `ESTADO_RODADA` | `vez;cartas_na_mesa;valor_mao;equipe_apostou` | Estado da rodada em andamento (`cartas_na_mesa` como `jogador:carta` separados por `,`). `equipe_apostou` é `0`, `1` ou vazio (ninguém apostou ainda nesta mão) — só essa equipe fica bloqueada de pedir aumento de novo; a outra pode, em qualquer momento da mão (ver seção de apostas). |
 | `RESULTADO_RODADA` | `cartas;vencedor` | Resultado da rodada concluída; `vencedor` é `0`, `1` ou `EMPATE`. |
 | `RESULTADO_MAO` | `vencedor;placar_equipe0;placar_equipe1` | Resultado da mão e placar atualizado. |
 | `PEDIDO_TRUCO` | `equipe_solicitante;valor_pedido` | Alguém pediu truco/aumento; a equipe adversária deve responder com `ACEITAR`, `CORRER` ou `AUMENTAR`. |
 | `FIM_PARTIDA` | `equipe_vencedora` | A partida acabou (alguma equipe atingiu 12 pontos). |
 | `JOGADOR_SAIU` | `nickname` | Um jogador da mesa se desconectou ou saiu. |
 | `ERRO` | `motivo` | Erro de protocolo ou jogada inválida (ver lista de motivos abaixo). |
+
+Quando um jogador sai (ou cai) e não sobra nenhum humano na mesa — só
+bots, identificados pelo prefixo de nickname `Bot` (`PREFIXO_NICKNAME_BOT`
+em `common/constants.py`) —, o servidor desfaz a mesa e desconecta à força
+os bots restantes (cada `cliente_bot.py` percebe a conexão encerrada e
+termina o próprio processo sozinho). Se ainda sobrar algum humano, a mesa
+continua normalmente.
 
 ## Motivos de erro (`ERRO;motivo`)
 
@@ -83,7 +90,7 @@ C(bia)  -> CORTAR;DESCER
 S       -> INICIO_PARTIDA;4P,3O,5E;bia;2            (somente para ana, com a mão dela)
 S       -> INICIO_PARTIDA;7O,2O,6E;bia;2            (somente para bia, com a mão dela)
 C(bia)  -> JOGAR_CARTA;7O                           (bia é o "mão", joga primeiro)
-S       -> ESTADO_RODADA;ana;bia:7O;2               (para ana e bia)
+S       -> ESTADO_RODADA;ana;bia:7O;2;              (para ana e bia; equipe_apostou vazio, ninguém pediu truco ainda)
 C(ana)  -> JOGAR_CARTA;4P
 S       -> RESULTADO_RODADA;bia:7O,ana:4P;0         (para ana e bia)
 ...

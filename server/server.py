@@ -45,6 +45,15 @@ class Servidor:
         if sessao is not None:
             sessao.enviar(tipo, *campos)
 
+    def desconectar_forcado(self, nickname):
+        """Fecha a conexão de um jogador à força (usado pra desligar bots
+        que sobraram numa mesa sem nenhum humano — sem humano pra jogar
+        contra, a própria sessão do bot encerra o processo dele)."""
+        with self._lock:
+            sessao = self._sessoes.get(nickname)
+        if sessao is not None:
+            sessao.fechar()
+
     def executar(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as servidor_socket:
             servidor_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

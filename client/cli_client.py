@@ -83,7 +83,7 @@ class ClienteCLI:
             partes = " | ".join(item.replace(":", ": ") for item in texto.split("|")) if texto else ""
             print(f"\n[Mão de 10] Você vê a mão dos parceiros: {partes}")
         elif tipo == constants.ESTADO_RODADA:
-            vez, cartas_csv, valor = campos
+            vez, cartas_csv, valor, _equipe_apostou = campos
             mesa_str = cartas_csv if cartas_csv else "(nenhuma carta jogada ainda)"
             print(f"\n[Rodada] Na mesa: {mesa_str} | Vez de: {vez} | Valor da mão: {valor}")
         elif tipo == constants.RESULTADO_RODADA:

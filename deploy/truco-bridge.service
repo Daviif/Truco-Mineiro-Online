@@ -1,5 +1,5 @@
 [Unit]
-Description=Truco Mineiro Online - bridge web (multi-sessão, porta 80)
+Description=Truco Mineiro Online - bridge web (multi-sessão, atrás do Caddy)
 After=network.target truco-server.service
 Wants=truco-server.service
 
@@ -7,8 +7,9 @@ Wants=truco-server.service
 Type=simple
 User=truco
 WorkingDirectory=/opt/truco-mineiro
-ExecStart=/usr/bin/python3 /opt/truco-mineiro/client/web_bridge.py 127.0.0.1 5000 80 0.0.0.0
-AmbientCapabilities=CAP_NET_BIND_SERVICE
+# só localhost: quem fala com o mundo de fora agora é o Caddy (porta 443/80
+# com HTTPS automático), que repassa pra esse processo internamente.
+ExecStart=/usr/bin/python3 /opt/truco-mineiro/client/web_bridge.py 127.0.0.1 5000 8080 127.0.0.1
 Restart=on-failure
 RestartSec=3
 

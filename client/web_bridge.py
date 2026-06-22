@@ -79,6 +79,7 @@ class EstadoCompartilhado:
             "mao": [],
             "vez": None,
             "valor_mao": None,
+            "equipe_apostou": None,
             "cartas_mesa": [],
             "placar": {"0": 0, "1": 0},
             "pedido_pendente": None,
@@ -195,6 +196,7 @@ class ClienteTCP:
                 cartas_mesa=[],
                 vez=None,
                 valor_mao=None,
+                equipe_apostou=None,
             )
         elif tipo == constants.PEDIDO_CORTE:
             self.estado.atualizar(pedido_corte=campos[0])
@@ -225,9 +227,15 @@ class ClienteTCP:
                     parceiros.append({"nickname": nick, "cartas": cartas_csv.split(",")})
             self.estado.atualizar(cartas_parceiros=parceiros)
         elif tipo == constants.ESTADO_RODADA:
-            vez, cartas_csv, valor = campos
+            vez, cartas_csv, valor, equipe_apostou = campos
             cartas = [par.split(":") for par in cartas_csv.split(",")] if cartas_csv else []
-            self.estado.atualizar(vez=vez, cartas_mesa=cartas, valor_mao=valor, pedido_pendente=None)
+            self.estado.atualizar(
+                vez=vez,
+                cartas_mesa=cartas,
+                valor_mao=valor,
+                pedido_pendente=None,
+                equipe_apostou=equipe_apostou or None,
+            )
         elif tipo == constants.RESULTADO_RODADA:
             cartas_csv, vencedor = campos
             self.estado.atualizar(ultimo_resultado_rodada={"cartas": cartas_csv, "vencedor": vencedor})
@@ -405,7 +413,7 @@ def criar_handler(gerenciador, host_servidor, porta_servidor):
                 return False
             faltantes = modo - len(mesa.get("jogadores", []))
             for _ in range(max(0, faltantes)):
-                nickname_bot = f"Bot{random.randint(10000, 99999)}"
+                nickname_bot = f"{constants.PREFIXO_NICKNAME_BOT}{random.randint(10000, 99999)}"
                 subprocess.Popen(
                     [sys.executable, SCRIPT_BOT, host_servidor, str(porta_servidor), nickname_bot, str(modo)]
                 )

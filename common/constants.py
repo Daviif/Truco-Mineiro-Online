@@ -45,6 +45,11 @@ TIPO_MAO_DE_FERRO = "MAO_DE_FERRO"
 # Modos de jogo suportados (número de jogadores)
 MODOS_SUPORTADOS = (2, 4, 6, 8)
 
+# Convenção de nickname (não faz parte do protocolo em si) usada por todo
+# bot pra se identificar: permite ao servidor reconhecer mesas que só têm
+# bots (sem nenhum humano) e desfazê-las quando o último humano sai.
+PREFIXO_NICKNAME_BOT = "Bot"
+
 # Valores de aposta
 VALOR_INICIAL = 2
 VALOR_TRUCO = 4
