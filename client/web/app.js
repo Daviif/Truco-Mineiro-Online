@@ -200,6 +200,19 @@
     return { x: 50 + 43 * Math.sin(rad), y: 50 - 38 * Math.cos(rad) };
   }
 
+  // vetor (unitário, aproximado) de onde a carta "vem voando" até o centro
+  // da mesa, na mesma direção do assento de quem jogou.
+  const VOO_POR_DIRECAO = {
+    N: { x: 0, y: -1 },
+    NE: { x: 0.7, y: -0.7 },
+    E: { x: 1, y: 0 },
+    SE: { x: 0.7, y: 0.7 },
+    S: { x: 0, y: 1 },
+    SW: { x: -0.7, y: 0.7 },
+    W: { x: -1, y: 0 },
+    NW: { x: -0.7, y: -0.7 },
+  };
+
   // -- renderização principal -------------------------------------------------
 
   function renderizar(estado) {
@@ -278,8 +291,8 @@
     vezPill.textContent = minhaVez ? "Sua vez!" : estado.vez ? "Vez de " + estado.vez : "-";
     vezPill.classList.toggle("minha-vez", minhaVez);
 
-    construirAssentos(estado, jogadores, indiceEu, modo, minhaVez);
-    renderizarCentroDaMesa(estado, modo);
+    const direcaoPorJogador = construirAssentos(estado, jogadores, indiceEu, modo, minhaVez);
+    renderizarCentroDaMesa(estado, modo, direcaoPorJogador);
     renderizarAvisoCorte(estado);
     renderizarAvisoEspecial(estado);
     renderizarCartasParceiros(estado, modo);
@@ -314,7 +327,8 @@
   function construirAssentos(estado, jogadores, indiceEu, modo, minhaVez) {
     const cont = el("assentos");
     limpar(cont);
-    if (indiceEu === -1) return;
+    const direcaoPorJogador = {};
+    if (indiceEu === -1) return direcaoPorJogador;
 
     const ordem = ORDEM_POR_MODO[modo] || ORDEM_POR_MODO[2];
     const rotacionados = jogadores.slice(indiceEu).concat(jogadores.slice(0, indiceEu));
@@ -323,6 +337,7 @@
     rotacionados.forEach(function (nick, i) {
       const ehEu = i === 0;
       const direcao = ordem[i] || "S";
+      direcaoPorJogador[nick] = direcao;
       const posicaoOriginal = jogadores.indexOf(nick);
       const equipe = posicaoOriginal % 2;
       const pos = posicaoCompasso(direcao);
@@ -402,6 +417,8 @@
 
       cont.appendChild(assento);
     });
+
+    return direcaoPorJogador;
   }
 
   function renderizarCartasParceiros(estado, modo) {
@@ -430,18 +447,49 @@
     });
   }
 
-  function renderizarCentroDaMesa(estado, modo) {
+  // chaves ("nick:carta") das jogadas já mostradas no centro da mesa: usado
+  // só pra saber quais são novas (e merecem a animação de "cair na mesa") —
+  // o centro é todo reconstruído a cada render, então sem isso a animação
+  // tocaria de novo em toda atualização de estado, não só quando alguém
+  // realmente jogou uma carta.
+  let chavesCentroAnteriores = [];
+
+  function renderizarCentroDaMesa(estado, modo, direcaoPorJogador) {
     const cont = el("jogadas-centro");
     limpar(cont);
-    (estado.cartas_mesa || []).forEach(function (par) {
+
+    // a carta que encerra a rodada nunca aparece em `cartas_mesa` (o servidor
+    // já manda direto o RESULTADO_RODADA, sem um ESTADO_RODADA intermediário
+    // com as duas cartas) — sem isso ela nunca "cairia" na mesa, só apareceria
+    // no cartaz de resultado. Por isso, com a mesa vazia, mostramos a última
+    // rodada revelada até a próxima carta ser jogada.
+    let cartasMesa = estado.cartas_mesa || [];
+    let jaRevelada = false;
+    if (!cartasMesa.length && estado.ultimo_resultado_rodada) {
+      cartasMesa = parseCsvPares(estado.ultimo_resultado_rodada.cartas);
+      jaRevelada = true;
+    }
+
+    const chavesAtuais = [];
+    cartasMesa.forEach(function (par) {
       const nick = par[0];
       const carta = par[1];
+      const chave = nick + ":" + carta;
+      chavesAtuais.push(chave);
+      const ehNova = chavesCentroAnteriores.indexOf(chave) === -1;
+
       const envoltorio = document.createElement("div");
-      envoltorio.className = "jogada-individual";
+      envoltorio.className = "jogada-individual" + (ehNova ? " jogada-nova" : "");
+      if (ehNova) {
+        const direcao = (direcaoPorJogador && direcaoPorJogador[nick]) || "S";
+        const voo = VOO_POR_DIRECAO[direcao] || VOO_POR_DIRECAO.S;
+        envoltorio.style.setProperty("--voo-x", voo.x.toFixed(2));
+        envoltorio.style.setProperty("--voo-y", voo.y.toFixed(2));
+      }
       envoltorio.appendChild(
         criarCarta(carta, {
           mini: true,
-          virada: estado.mao_de_ferro_ativa,
+          virada: !jaRevelada && estado.mao_de_ferro_ativa,
           manilha: !estado.mao_de_ferro_ativa && ehManilha(carta, modo),
         })
       );
@@ -451,6 +499,7 @@
       envoltorio.appendChild(legenda);
       cont.appendChild(envoltorio);
     });
+    chavesCentroAnteriores = chavesAtuais;
   }
 
   function renderizarAvisoCorte(estado) {

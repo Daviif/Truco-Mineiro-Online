@@ -657,6 +657,24 @@ input[type="text"] {
   gap: 0.15rem;
 }
 
+.jogada-individual.jogada-nova {
+  animation: cair-na-mesa 0.4s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@keyframes cair-na-mesa {
+  from {
+    transform: translate(calc(var(--voo-x, 0) * 100px), calc(var(--voo-y, 0) * 100px)) scale(0.55) rotate(calc(var(--voo-x, 0) * -12deg));
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  to {
+    transform: translate(0, 0) scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
 .jogada-individual .legenda {
   font-size: 0.62rem;
   color: var(--marfim);
@@ -961,6 +979,10 @@ input[type="text"] {
 
 @media (prefers-reduced-motion: reduce) {
   .assento.na-vez .identidade {
+    animation: none;
+  }
+
+  .jogada-individual.jogada-nova {
     animation: none;
   }
 
