@@ -448,7 +448,7 @@
     const equipeComAPalavra = estado.equipe_apostou != null ? Number(estado.equipe_apostou) : null;
     const minhaEquipeTemAPalavra = equipeComAPalavra !== null && equipeComAPalavra === meuEquipe;
     const atingiuMaximo = valorAtual >= VALOR_DOZE;
-    const bloqueadoPorOutroMotivo = !!estado.pedido_pendente || !!estado.mao_especial || !!faseAnimacaoMao;
+    const bloqueadoPorOutroMotivo = !!estado.pedido_pendente || !!estado.bloqueio_truco || !!faseAnimacaoMao;
 
     btn.textContent = PROXIMO_PEDIDO_POR_VALOR[valorAtual] || "TRUCO!";
     btn.disabled = bloqueadoPorOutroMotivo || minhaEquipeTemAPalavra || atingiuMaximo;
@@ -515,7 +515,11 @@
         const n = mao.length;
         const anguloTotal = Math.min(26, n * 7);
         const desabilitada =
-          !minhaVez || !!estado.pedido_pendente || !!estado.pedido_corte || !!estado.mao_especial || !!faseAnimacaoMao;
+          !minhaVez ||
+          !!estado.pedido_pendente ||
+          !!estado.pedido_corte ||
+          !!estado.decisao_mao_10_pendente ||
+          !!faseAnimacaoMao;
         mao.forEach(function (carta, indice) {
           const t = n > 1 ? indice / (n - 1) : 0.5;
           const rot = -anguloTotal / 2 + anguloTotal * t;
@@ -680,23 +684,31 @@
   function renderizarAvisoEspecial(estado) {
     const painel = el("painel-mao-especial");
     const decisao = el("painel-decisao-mao-10");
-    if (estado.mao_especial) {
-      painel.classList.remove("escondido");
-      if (estado.mao_especial.tipo === "MAO_DE_FERRO") {
-        el("texto-mao-especial").textContent =
-          "Mão de ferro! As duas equipes estão com 10+ pontos — cartas viradas, truco bloqueado.";
-        decisao.classList.add("escondido");
-      } else {
-        const jogadores = estado.mesa.jogadores;
-        const souDaEquipe = jogadores.indexOf(meuNickname) % 2 === Number(estado.mao_especial.equipe_decisora);
-        el("texto-mao-especial").textContent = souDaEquipe
-          ? "Mão de 10! Sua equipe está com 10+ pontos. Truco bloqueado — jogar ou correr?"
-          : "Mão de 10! A equipe adversária está com 10+ pontos e decide se joga ou corre.";
-        decisao.classList.toggle("escondido", !souDaEquipe);
-      }
-    } else {
+    // o aviso (informativo na mão de ferro, com botões na mão de 10) só
+    // fica visível até o jogo de fato liberar (1º ESTADO_RODADA depois das
+    // cartas distribuídas) — sem isso, ficava preso na tela a mão inteira,
+    // cobrindo a mesa, mesmo depois de já dar pra jogar normalmente.
+    if (!estado.mao_especial || !estado.mostrar_aviso_mao_especial) {
       painel.classList.add("escondido");
       decisao.classList.add("escondido");
+      return;
+    }
+    const ehFerro = estado.mao_especial.tipo === "MAO_DE_FERRO";
+    const mostrarDecisaoMao10 = !ehFerro && !!estado.decisao_mao_10_pendente;
+
+    if (ehFerro) {
+      painel.classList.remove("escondido");
+      el("texto-mao-especial").textContent =
+        "Mão de ferro! As duas equipes estão com 10+ pontos — cartas viradas, truco bloqueado.";
+      decisao.classList.add("escondido");
+    } else if (mostrarDecisaoMao10) {
+      painel.classList.remove("escondido");
+      const jogadores = estado.mesa.jogadores;
+      const souDaEquipe = jogadores.indexOf(meuNickname) % 2 === Number(estado.mao_especial.equipe_decisora);
+      el("texto-mao-especial").textContent = souDaEquipe
+        ? "Mão de 10! Sua equipe está com 10+ pontos. Veja a mão do time e decida: jogar ou correr?"
+        : "Mão de 10! A equipe adversária está com 10+ pontos e decide se joga ou corre.";
+      decisao.classList.toggle("escondido", !souDaEquipe);
     }
   }
 

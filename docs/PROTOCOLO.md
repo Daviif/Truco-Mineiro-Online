@@ -96,7 +96,12 @@ S       -> RESULTADO_RODADA;bia:7O,ana:4P;0         (para ana e bia)
 ...
 S       -> RESULTADO_MAO;0;2;0
 S       -> PAPEIS;...                               (mão seguinte: pé passa para bia)
-S       -> PEDIDO_CORTE;ana                          (ou MAO_ESPECIAL;... antes, se alguém estiver com 10+)
+S       -> PEDIDO_CORTE;ana                          (corte sempre primeiro, mesmo na mão de 10/ferro)
+...
+C(ana)  -> CORTAR;DESCER
+S       -> MAO_ESPECIAL;MAO_DE_10;0                  (só se alguém estiver com 10+; junto com INICIO_PARTIDA)
+S       -> INICIO_PARTIDA;...                        (cartas já na mão; truco/jogar bloqueados até decidir)
+C(...)  -> DECIDIR_MAO_10;JOGAR                       (ou CORRER)
 ...
 S       -> FIM_PARTIDA;0
 ```
@@ -145,22 +150,27 @@ com `PEDIDO_CORTE`; só o contra-pé pode responder com
 Quando pelo menos uma equipe atinge 10 pontos, nenhuma das duas pode
 pedir truco/aumento naquela mão (`TRUCO_BLOQUEADO`):
 
-- **Mão de 10** (só uma equipe com 10+): o servidor manda
-  `MAO_ESPECIAL;MAO_DE_10;equipe`, e essa equipe decide com
-  `DECIDIR_MAO_10;JOGAR` ou `DECIDIR_MAO_10;CORRER`.
-  - `CORRER`: a equipe adversária ganha 2 pontos e o baralho passa, sem
-    distribuir cartas.
-  - `JOGAR` e vencer: a equipe fecha a partida em 12 pontos.
-  - `JOGAR` e perder: a equipe adversária ganha 4 pontos (em vez do
-    valor normal da mão) e o baralho passa.
-  - Depois do corte, junto com `INICIO_PARTIDA`, o servidor manda
+- **Mão de 10** (só uma equipe com 10+): o corte e a distribuição
+  acontecem primeiro, igual numa mão normal — só depois, com as cartas já
+  na mão de cada um, o servidor manda `MAO_ESPECIAL;MAO_DE_10;equipe`
+  (junto com `INICIO_PARTIDA`), e a equipe decide com
+  `DECIDIR_MAO_10;JOGAR` ou `DECIDIR_MAO_10;CORRER` — já vendo o que tem
+  na mão, não no escuro. Enquanto não decide, `JOGAR_CARTA`/`TRUCO` ficam
+  bloqueados (`FASE_INVALIDA`).
+  - Junto com `MAO_ESPECIAL`/`INICIO_PARTIDA`, o servidor manda
     `CARTAS_PARCEIROS` para **um único jogador da equipe decisora**: o
     "mão", se ele for dessa equipe; senão, o próximo jogador (em ordem de
     assento) da equipe decisora depois do "mão" — sempre existe exatamente
     um, já que as equipes se alternam a cada assento. Esse jogador vê a
-    mão completa dos parceiros antes de decidir junto se a equipe joga ou
-    corre. Não se aplica em 2 jogadores (cada um é sua própria equipe, sem
-    parceiro).
+    mão completa dos parceiros (a própria mão de cada um já chega junto,
+    pelo `INICIO_PARTIDA` de cada um) antes da equipe decidir junto se
+    joga ou corre. Não se aplica em 2 jogadores (cada um é sua própria
+    equipe, sem parceiro).
+  - `CORRER`: a equipe adversária ganha 2 pontos e a mão acaba — as
+    cartas já tinham sido distribuídas, mas nunca chegam a ser jogadas.
+  - `JOGAR` e vencer: a equipe fecha a partida em 12 pontos.
+  - `JOGAR` e perder: a equipe adversária ganha 4 pontos (em vez do
+    valor normal da mão) e o baralho passa.
 - **Mão de ferro** (as duas equipes com 10+): o servidor manda
   `MAO_ESPECIAL;MAO_DE_FERRO;` (sem equipe decisora) e distribui as
   cartas sem revelá-las (`INICIO_PARTIDA` chega com `?,?,?` no lugar das

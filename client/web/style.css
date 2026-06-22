@@ -726,10 +726,13 @@ depender do contêiner `.mesa` que só existe durante a partida. */
   border-color: var(--vinho);
 }
 
-/* corte do baralho: fora do centro da mesa (que fica ocupado pelas cartas
-jogadas e pela animação de embaralhar/cortar/entregar) — ancorado perto do
-topo em vez de no meio. */
-.aviso-corte {
+/* corte, mão especial (mão de 10/ferro) e pedido de truco: fora do centro
+da mesa (que fica ocupado pelas cartas jogadas, pela animação de
+embaralhar/cortar/entregar, e — o pior caso — cobria a própria mão do
+jogador, que fica bem abaixo do centro) — ancorados perto do topo em vez
+de no meio. Nunca aparecem dois ao mesmo tempo, então não competem entre
+si por espaço. */
+.aviso-topo {
   top: 24%;
   transform: translate(-50%, 0);
 }

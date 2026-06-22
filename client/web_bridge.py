@@ -76,6 +76,21 @@ class EstadoCompartilhado:
             "pedido_corte": None,
             "mao_especial": None,
             "mao_de_ferro_ativa": False,
+            # bloqueio_truco dura a mão toda (mão de 10 ou de ferro); já
+            # decisao_mao_10_pendente só fica True na janela entre as cartas
+            # serem distribuídas e a equipe decidir jogar/correr — usado pra
+            # esconder o painel de decisão e destravar a mão depois que ela
+            # decide (sem isso, jogar carta ficava bloqueado pra sempre, e o
+            # painel de decisão nunca desaparecia depois de escolher).
+            "bloqueio_truco": False,
+            "decisao_mao_10_pendente": False,
+            # controla só a VISIBILIDADE do painel/aviso de mão especial
+            # (tanto o de ferro, que é só informativo, quanto o de mão de
+            # 10): fica visível só até o jogo realmente liberar (primeiro
+            # ESTADO_RODADA depois das cartas distribuídas) — sem isso, o
+            # aviso "Mão de ferro!"/"Mão de 10!" ficava preso na tela a mão
+            # inteira, cobrindo a mesa.
+            "mostrar_aviso_mao_especial": False,
             "mao": [],
             "vez": None,
             "valor_mao": None,
@@ -197,6 +212,9 @@ class ClienteTCP:
                 vez=None,
                 valor_mao=None,
                 equipe_apostou=None,
+                bloqueio_truco=False,
+                decisao_mao_10_pendente=False,
+                mostrar_aviso_mao_especial=False,
             )
         elif tipo == constants.PEDIDO_CORTE:
             self.estado.atualizar(pedido_corte=campos[0])
@@ -205,6 +223,9 @@ class ClienteTCP:
             self.estado.atualizar(
                 mao_especial={"tipo": tipo_mao, "equipe_decisora": equipe_decisora},
                 mao_de_ferro_ativa=(tipo_mao == constants.TIPO_MAO_DE_FERRO),
+                bloqueio_truco=True,
+                decisao_mao_10_pendente=(tipo_mao == constants.TIPO_MAO_DE_10),
+                mostrar_aviso_mao_especial=True,
             )
         elif tipo == constants.INICIO_PARTIDA:
             mao_csv, vez, valor = campos
@@ -229,12 +250,17 @@ class ClienteTCP:
         elif tipo == constants.ESTADO_RODADA:
             vez, cartas_csv, valor, equipe_apostou = campos
             cartas = [par.split(":") for par in cartas_csv.split(",")] if cartas_csv else []
+            # ESTADO_RODADA só é mandado durante jogo de verdade (depois de
+            # uma jogada ou de decidir "jogar" na mão de 10) — chegou aqui,
+            # a decisão (se havia) já foi resolvida.
             self.estado.atualizar(
                 vez=vez,
                 cartas_mesa=cartas,
                 valor_mao=valor,
                 pedido_pendente=None,
                 equipe_apostou=equipe_apostou or None,
+                decisao_mao_10_pendente=False,
+                mostrar_aviso_mao_especial=False,
             )
         elif tipo == constants.RESULTADO_RODADA:
             cartas_csv, vencedor = campos
@@ -245,6 +271,9 @@ class ClienteTCP:
                 ultimo_resultado_mao={"vencedor": vencedor, "placar0": placar0, "placar1": placar1},
                 placar={"0": placar0, "1": placar1},
                 pedido_pendente=None,
+                mao_especial=None,
+                decisao_mao_10_pendente=False,
+                mostrar_aviso_mao_especial=False,
             )
         elif tipo == constants.PEDIDO_TRUCO:
             equipe, valor = campos

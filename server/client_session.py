@@ -162,10 +162,12 @@ class ClientSession:
         with mesa.lock:
             resultado = mesa.partida.decidir_mao_10(self.nickname, campos[0])
             if resultado is None:
-                # decidiu jogar: a mão segue para a fase de corte
-                self._notificar_pedido_corte(mesa)
+                # decidiu jogar: as cartas já foram distribuídas antes da
+                # decisão, então só falta avisar que o jogo liberou de
+                # verdade (some o aviso/decisão, libera as cartas pra jogar).
+                self._notificar_estado_rodada(mesa)
             else:
-                # decidiu correr: a mão termina sem distribuir cartas
+                # decidiu correr: a mão termina sem nunca ter sido jogada
                 self._finalizar_mao_e_notificar(mesa, resultado)
 
     def _h_truco(self, campos):
@@ -261,20 +263,24 @@ class ClientSession:
             self.servidor.enviar_para(jogador, constants.MAO_ESPECIAL, tipo, equipe_decisora)
 
     def _anunciar_nova_mao(self, mesa):
-        """Anuncia o início de uma nova mão: papéis (pé/mão/contra-pé) e, a
-        seguir, a fase em que ela começa (decisão de mão de 10, ou corte do
-        baralho direto para mãos normais e mão de ferro)."""
+        """Anuncia o início de uma nova mão: papéis (pé/mão/contra-pé) e o
+        corte — que agora sempre acontece primeiro, até na mão de 10 (só na
+        mão de ferro o aviso de mão especial já vai junto, porque não tem
+        decisão nenhuma envolvida; na mão de 10 esse aviso só chega depois
+        do corte, junto com as cartas — ver `_notificar_inicio_mao`)."""
         partida = mesa.partida
         self._notificar_papeis(mesa)
-        if partida.fase == game.FASE_DECISAO_MAO_10:
+        if partida.eh_mao_de_ferro:
             self._notificar_mao_especial(mesa)
-        else:
-            if partida.eh_mao_de_ferro:
-                self._notificar_mao_especial(mesa)
-            self._notificar_pedido_corte(mesa)
+        self._notificar_pedido_corte(mesa)
 
     def _notificar_inicio_mao(self, mesa):
         partida = mesa.partida
+        # na mão de 10 é só agora, com a mão já na mão (literalmente) de
+        # cada um, que a equipe decisora fica sabendo que precisa decidir —
+        # antes do corte ela ainda nem tinha cartas pra olhar.
+        if partida.eh_mao_de_10:
+            self._notificar_mao_especial(mesa)
         for jogador in mesa.jogadores:
             if partida.eh_mao_de_ferro:
                 mao_csv = ",".join("?" for _ in partida.mao_de[jogador])

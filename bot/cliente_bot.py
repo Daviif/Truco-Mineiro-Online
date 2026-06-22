@@ -57,6 +57,12 @@ class ClienteBot:
         self.pedido_pendente = None
         self.pedido_corte = None
         self.mao_especial = None
+        # só True na janela entre as cartas distribuídas e a equipe decidir
+        # jogar/correr na mão de 10 — sem isso, o bot tentava jogar carta ou
+        # chamar truco mesmo com a decisão ainda pendente (cartas já
+        # chegaram pelo INICIO_PARTIDA antes da decisão, desde que o corte
+        # passou a vir primeiro).
+        self.decisao_mao_10_pendente = False
         self.placar = {0: 0, 1: 0}
 
         self.cartas_rodada_atual = []
@@ -159,6 +165,7 @@ class ClienteBot:
         self.pedido_corte = None
         self.mao_especial = None
         self.mao_de_ferro_ativa = False
+        self.decisao_mao_10_pendente = False
         self.jogadas_completas_na_mao = {}
         self.resultados_rodadas_na_mao = []
         self.cartas_rodada_atual = []
@@ -192,6 +199,7 @@ class ClienteBot:
         tipo_mao, equipe_decisora = campos
         self.mao_especial = {"tipo": tipo_mao, "equipe_decisora": equipe_decisora}
         self.mao_de_ferro_ativa = tipo_mao == constants.TIPO_MAO_DE_FERRO
+        self.decisao_mao_10_pendente = tipo_mao == constants.TIPO_MAO_DE_10
         if (
             tipo_mao == constants.TIPO_MAO_DE_10
             and int(equipe_decisora) == self.equipe_de.get(self.nickname)
@@ -249,6 +257,10 @@ class ClienteBot:
         self.vez = vez
         self.valor_mao = valor
         self.pedido_pendente = None
+        # ESTADO_RODADA só chega durante jogo de verdade (depois de uma
+        # jogada ou de decidir "jogar" na mão de 10) — se chegou, qualquer
+        # decisão de mão de 10 pendente já foi resolvida.
+        self.decisao_mao_10_pendente = False
         self._agir_se_for_minha_vez()
 
     def _tratar_resultado_rodada(self, campos):
@@ -261,6 +273,7 @@ class ClienteBot:
     def _tratar_resultado_mao(self, campos):
         _vencedor, placar0, placar1 = campos
         self.placar = {0: int(placar0), 1: int(placar1)}
+        self.decisao_mao_10_pendente = False
 
     def _tratar_pedido_truco(self, campos):
         equipe, valor = campos
@@ -290,12 +303,16 @@ class ClienteBot:
             return
         if self.pedido_pendente is not None or self.pedido_corte is not None:
             return
+        if self.decisao_mao_10_pendente:
+            return
         self._agendar(self._executar_minha_vez)
 
     def _executar_minha_vez(self):
         if not self._ativo or self.vez != self.nickname:
             return
         if self.pedido_pendente is not None or self.pedido_corte is not None:
+            return
+        if self.decisao_mao_10_pendente:
             return
 
         if self.mao_de_ferro_ativa:

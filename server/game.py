@@ -198,8 +198,11 @@ class Partida:
     # -- gerência de mãos -------------------------------------------------
 
     def _preparar_nova_mao(self):
-        """Prepara uma nova mão: zera o estado de rodada e decide a fase
-        inicial (corte direto, ou decisão de mão de 10/ferro antes)."""
+        """Prepara uma nova mão: zera o estado de rodada e já manda pra fase
+        de corte — o corte e a distribuição acontecem sempre primeiro, até
+        na mão de 10/ferro. Na mão de 10, é só depois de já ver a própria
+        mão (e, pra quem tem direito, a dos parceiros) que a equipe decide
+        jogar ou correr (ver `_distribuir_cartas`/`decidir_mao_10`)."""
         self.mao_de = {jogador: [] for jogador in self.jogadores}
         self.ordem_atual = None
         self.vez_index = 0
@@ -224,16 +227,13 @@ class Partida:
         if len(equipes_em_especial) == 2:
             self.eh_mao_de_ferro = True
             self.bloqueio_truco = True
-            self.fase = FASE_CORTE
-            self._preparar_baralho()
         elif len(equipes_em_especial) == 1:
             self.eh_mao_de_10 = True
             self.bloqueio_truco = True
             self.equipe_mao_10 = equipes_em_especial[0]
-            self.fase = FASE_DECISAO_MAO_10
-        else:
-            self.fase = FASE_CORTE
-            self._preparar_baralho()
+
+        self.fase = FASE_CORTE
+        self._preparar_baralho()
 
     def _preparar_baralho(self):
         baralho = montar_baralho(self.modo)
@@ -256,8 +256,9 @@ class Partida:
                 "fim_partida": self.vencedor_partida,
             }
         if decisao == constants.DECISAO_JOGAR:
-            self.fase = FASE_CORTE
-            self._preparar_baralho()
+            # as cartas já foram distribuídas (ver `_distribuir_cartas`) —
+            # só falta liberar a jogada normal.
+            self.fase = FASE_JOGANDO
             return None
         raise ErroJogo(constants.ERRO_MENSAGEM_INVALIDA)
 
@@ -279,7 +280,10 @@ class Partida:
             self.mao_de[jogador] = [baralho.pop() for _ in range(CARTAS_POR_JOGADOR)]
         self.ordem_atual = ordem
         self.vez_index = 0
-        self.fase = FASE_JOGANDO
+        # na mão de 10, a equipe só decide jogar/correr depois de já ver as
+        # cartas (a sua e, quem tem direito, a dos parceiros) — joga só
+        # libera de verdade quando `decidir_mao_10` escolhe "jogar".
+        self.fase = FASE_DECISAO_MAO_10 if self.eh_mao_de_10 else FASE_JOGANDO
         self._baralho_pendente = None
 
     @property
