@@ -8,6 +8,12 @@ do navegador para o socket TCP, empurrando o estado para a página via
 Server-Sent Events (SSE). O navegador nunca fala com o servidor de truco
 diretamente — só com este processo, por padrão em localhost.
 
+Um único processo atende vários visitantes ao mesmo tempo: cada um recebe
+um cookie de sessão na primeira visita, e por trás dele o bridge abre uma
+conexão TCP própria com o servidor de truco (cada cookie = um jogador
+diferente). Não é preciso uma porta HTTP por jogador — todos usam a mesma
+porta/domínio, e cada conexão se resolve por si só pelo cookie.
+
 Uso: python3 client/web_bridge.py [host_servidor] [porta_servidor] [porta_http] [host_http]
 
 `host_http` é opcional (padrão `127.0.0.1`, só local). Passe `0.0.0.0` para
@@ -17,10 +23,12 @@ acessa a porta HTTP herda a sessão já logada no servidor de truco, então só
 abra pra fora numa rede/firewall em que você confia.
 """
 
+import http.cookies
 import json
 import os
 import queue
 import random
+import secrets
 import socket
 import subprocess
 import sys
@@ -40,6 +48,8 @@ PORTA_HTTP_PADRAO = 8080
 # acessa a página HTTP herda a sessão já logada no servidor de truco), então
 # abrir isso pra fora exige passar o 4º argumento explicitamente.
 HOST_HTTP_PADRAO = "127.0.0.1"
+
+NOME_COOKIE = "truco_sessao"
 
 DIR_WEB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 RAIZ_PROJETO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -237,14 +247,94 @@ class ClienteTCP:
             self.estado.atualizar(aviso=f"O jogador '{campos[0]}' saiu da mesa.")
 
 
-def criar_handler(estado, cliente_tcp, host_servidor, porta_servidor):
+class ErroSessao(Exception):
+    """Não foi possível abrir uma conexão TCP nova com o servidor de truco."""
+
+
+class GerenciadorSessoes:
+    """Dono de uma sessão (estado + conexão TCP própria com o servidor de
+    truco) por visitante do navegador, identificada por um cookie.
+
+    É o que permite uma porta HTTP só pra todo mundo: sem isso, cada
+    `web_bridge.py` seria sempre um único jogador (um `ClienteTCP` fixo),
+    então 20 pessoas precisariam de 20 processos/portas. Aqui, cada cookie
+    novo recebe sua própria conexão; cookies existentes reusam a sessão já
+    aberta.
+    """
+
+    def __init__(self, host_servidor, porta_servidor):
+        self._host = host_servidor
+        self._porta = porta_servidor
+        self._lock = threading.Lock()
+        self._sessoes = {}  # sessao_id -> (EstadoCompartilhado, ClienteTCP)
+
+    def obter_ou_criar(self, sessao_id):
+        """Retorna (sessao_id, estado, cliente_tcp, cookie_precisa_ser_enviado)."""
+        with self._lock:
+            if sessao_id and sessao_id in self._sessoes:
+                estado, cliente_tcp = self._sessoes[sessao_id]
+                return sessao_id, estado, cliente_tcp, False
+            novo_id = sessao_id or secrets.token_hex(16)
+            estado = EstadoCompartilhado()
+            try:
+                cliente_tcp = ClienteTCP(self._host, self._porta, estado)
+            except OSError as erro:
+                raise ErroSessao(
+                    f"não foi possível conectar ao servidor de truco em {self._host}:{self._porta} ({erro})"
+                ) from erro
+            threading.Thread(target=cliente_tcp.escutar, daemon=True).start()
+            self._sessoes[novo_id] = (estado, cliente_tcp)
+            # só precisa mandar Set-Cookie se o navegador ainda não tinha
+            # nenhum (sessao_id era None) — se ele mandou um cookie de uma
+            # sessão que não existe mais, reaproveitamos o mesmo id.
+            return novo_id, estado, cliente_tcp, sessao_id is None
+
+    def remover(self, sessao_id):
+        with self._lock:
+            self._sessoes.pop(sessao_id, None)
+
+
+def criar_handler(gerenciador, host_servidor, porta_servidor):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, formato, *args):
             pass  # silencia o log padrão do http.server
 
+        def _ler_sessao_id(self):
+            cookie_header = self.headers.get("Cookie")
+            if not cookie_header:
+                return None
+            cookies = http.cookies.SimpleCookie(cookie_header)
+            item = cookies.get(NOME_COOKIE)
+            return item.value if item else None
+
+        def _resolver_sessao(self):
+            """Acha (ou cria) a sessão deste visitante a partir do cookie.
+            Retorna False (e já manda a resposta de erro) se não conseguir
+            abrir conexão nova com o servidor de truco."""
+            try:
+                sessao_id, estado, cliente_tcp, nova = gerenciador.obter_ou_criar(self._ler_sessao_id())
+            except ErroSessao as erro:
+                corpo = str(erro).encode("utf-8")
+                self.send_response(503)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Length", str(len(corpo)))
+                self.end_headers()
+                self.wfile.write(corpo)
+                return False
+            self._sessao_id = sessao_id
+            self._estado = estado
+            self._cliente_tcp = cliente_tcp
+            self._sessao_nova = nova
+            return True
+
+        def _talvez_enviar_cookie(self):
+            if self._sessao_nova:
+                self.send_header("Set-Cookie", f"{NOME_COOKIE}={self._sessao_id}; Path=/; HttpOnly; SameSite=Lax")
+
         def do_GET(self):
             if self.path == "/events":
-                self._tratar_sse()
+                if self._resolver_sessao():
+                    self._tratar_sse()
                 return
             entrada = ARQUIVOS_ESTATICOS.get(self.path)
             if entrada is None:
@@ -271,8 +361,9 @@ def criar_handler(estado, cliente_tcp, host_servidor, porta_servidor):
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-cache")
             self.send_header("Connection", "keep-alive")
+            self._talvez_enviar_cookie()
             self.end_headers()
-            fila = estado.assinar()
+            fila = self._estado.assinar()
             try:
                 while True:
                     snapshot = fila.get()
@@ -282,34 +373,34 @@ def criar_handler(estado, cliente_tcp, host_servidor, porta_servidor):
             except (BrokenPipeError, ConnectionResetError, OSError):
                 pass
             finally:
-                estado.desassinar(fila)
+                self._estado.desassinar(fila)
 
         def _jogar_carta(self, carta_ou_posicao):
-            sucesso = cliente_tcp.enviar(constants.JOGAR_CARTA, carta_ou_posicao)
+            sucesso = self._cliente_tcp.enviar(constants.JOGAR_CARTA, carta_ou_posicao)
             if sucesso:
-                if estado.dados.get("mao_de_ferro_ativa"):
+                if self._estado.dados.get("mao_de_ferro_ativa"):
                     try:
-                        estado.remover_posicao_da_mao(int(carta_ou_posicao))
+                        self._estado.remover_posicao_da_mao(int(carta_ou_posicao))
                     except ValueError:
                         pass
                 else:
-                    estado.remover_carta_da_mao(carta_ou_posicao)
+                    self._estado.remover_carta_da_mao(carta_ou_posicao)
             return sucesso
 
         def _entrar_mesa(self, modo_txt):
             try:
-                estado.atualizar(modo_solicitado=int(modo_txt))
+                self._estado.atualizar(modo_solicitado=int(modo_txt))
             except ValueError:
                 pass
-            return cliente_tcp.enviar(constants.ENTRAR_MESA, modo_txt)
+            return self._cliente_tcp.enviar(constants.ENTRAR_MESA, modo_txt)
 
         def _completar_com_bots(self):
             """Spawna bots reais (bot/cliente_bot.py, clientes TCP de verdade,
             cada um seu próprio processo) para preencher os assentos que
             faltam na mesa atual. Não é um caso especial do servidor: pro
             servidor, cada bot é só mais um cliente TCP entrando na mesa."""
-            modo = estado.dados.get("modo_solicitado")
-            mesa = estado.dados.get("mesa")
+            modo = self._estado.dados.get("modo_solicitado")
+            mesa = self._estado.dados.get("mesa")
             if modo is None or mesa is None:
                 return False
             faltantes = modo - len(mesa.get("jogadores", []))
@@ -320,7 +411,14 @@ def criar_handler(estado, cliente_tcp, host_servidor, porta_servidor):
                 )
             return True
 
+        def _sair(self):
+            sucesso = self._cliente_tcp.enviar(constants.SAIR)
+            gerenciador.remover(self._sessao_id)
+            return sucesso
+
         def do_POST(self):
+            if not self._resolver_sessao():
+                return
             tamanho = int(self.headers.get("Content-Length", 0))
             corpo = self.rfile.read(tamanho) if tamanho else b"{}"
             try:
@@ -328,6 +426,7 @@ def criar_handler(estado, cliente_tcp, host_servidor, porta_servidor):
             except json.JSONDecodeError:
                 payload = {}
 
+            cliente_tcp = self._cliente_tcp
             rotas = {
                 "/login": lambda: cliente_tcp.enviar(constants.LOGIN, payload.get("nickname", "")),
                 "/listar_mesas": lambda: cliente_tcp.enviar(constants.LISTAR_MESAS),
@@ -340,7 +439,7 @@ def criar_handler(estado, cliente_tcp, host_servidor, porta_servidor):
                 "/aceitar": lambda: cliente_tcp.enviar(constants.ACEITAR),
                 "/correr": lambda: cliente_tcp.enviar(constants.CORRER),
                 "/aumentar": lambda: cliente_tcp.enviar(constants.AUMENTAR),
-                "/sair": lambda: cliente_tcp.enviar(constants.SAIR),
+                "/sair": lambda: self._sair(),
             }
             acao = rotas.get(self.path)
             if acao is None:
@@ -349,6 +448,7 @@ def criar_handler(estado, cliente_tcp, host_servidor, porta_servidor):
                 return
             acao()
             self.send_response(204)
+            self._talvez_enviar_cookie()
             self.end_headers()
 
     return Handler
@@ -360,13 +460,10 @@ def main():
     porta_http = int(sys.argv[3]) if len(sys.argv) > 3 else PORTA_HTTP_PADRAO
     host_http = sys.argv[4] if len(sys.argv) > 4 else HOST_HTTP_PADRAO
 
-    estado = EstadoCompartilhado()
-    cliente_tcp = ClienteTCP(host_servidor, porta_servidor, estado)
-    threading.Thread(target=cliente_tcp.escutar, daemon=True).start()
-
-    handler = criar_handler(estado, cliente_tcp, host_servidor, porta_servidor)
+    gerenciador = GerenciadorSessoes(host_servidor, porta_servidor)
+    handler = criar_handler(gerenciador, host_servidor, porta_servidor)
     httpd = ThreadingHTTPServer((host_http, porta_http), handler)
-    print(f"Bridge conectado ao servidor de truco em {host_servidor}:{porta_servidor}")
+    print(f"Bridge pronto: cada visitante recebe sua própria sessão no servidor de truco em {host_servidor}:{porta_servidor}")
     if host_http == "0.0.0.0":
         print(f"Abra http://<IP desta máquina>:{porta_http} no navegador.")
     else:

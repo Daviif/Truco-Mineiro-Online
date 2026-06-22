@@ -68,15 +68,21 @@ python3 client/web_bridge.py [host_servidor] [porta_servidor] [porta_http] [host
 Padrão: `127.0.0.1 5000 8080 127.0.0.1`. Esse processo **é** o cliente TCP
 de verdade (abre o socket com o servidor exatamente como o `cli_client.py`)
 e também expõe uma página local em `http://127.0.0.1:8080` — abra essa
-URL em qualquer navegador para jogar. Cada jogador deve rodar o seu
-próprio `web_bridge.py` (uma porta HTTP por jogador).
+URL em qualquer navegador para jogar.
+
+Um único `web_bridge.py` atende vários jogadores ao mesmo tempo: na
+primeira visita, cada navegador recebe um cookie de sessão, e por trás
+dele o bridge abre uma conexão TCP própria com o servidor (um jogador por
+cookie). Não precisa de uma porta por pessoa — todos acessam a mesma
+URL e cada um entra com o seu próprio nickname, mesa, mão etc.
 
 Pra acessar de outra máquina (ex: rodando o bridge num servidor remoto e
 abrindo a página de casa, sem instalar nada local), passe `0.0.0.0` no
 4º argumento e abra a porta no firewall, ex:
 `python3 client/web_bridge.py 127.0.0.1 5000 8080 0.0.0.0`. Sem isso, o
-bridge só aceita conexão de localhost — e não tem autenticação própria,
-então só faça isso numa rede em que confia.
+bridge só aceita conexão de localhost — e não tem autenticação própria
+(quem tem a URL entra como visitante novo), então só faça isso numa rede
+em que confia.
 
 ### 4. Bot de IA (joga sozinho)
 

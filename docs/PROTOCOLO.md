@@ -167,5 +167,9 @@ pedir truco/aumento naquela mão (`TRUCO_BLOQUEADO`):
   intermediárias.
 - **Web** (`client/web_bridge.py` + `client/web/`): o bridge é o cliente
   TCP real (fala este protocolo igual ao CLI); o navegador conversa com o
-  bridge só por HTTP local (POST de ações, GET `/events` via
-  Server-Sent Events para receber o estado atualizado em JSON).
+  bridge só por HTTP (POST de ações, GET `/events` via Server-Sent Events
+  para receber o estado atualizado em JSON). Um único processo de bridge
+  atende vários jogadores: cada navegador recebe um cookie de sessão na
+  primeira visita, e o bridge abre uma conexão TCP própria por cookie —
+  ou seja, várias pessoas podem usar a mesma porta/URL, cada uma com seu
+  próprio login na mesa, sem precisar de um bridge por jogador.
