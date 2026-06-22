@@ -62,14 +62,21 @@ Para jogar uma partida completa, abra um terminal com o servidor e dois
 ### 3. Cliente web (bônus de compatibilidade multiplataforma)
 
 ```
-python3 client/web_bridge.py [host_servidor] [porta_servidor] [porta_http]
+python3 client/web_bridge.py [host_servidor] [porta_servidor] [porta_http] [host_http]
 ```
 
-Padrão: `127.0.0.1 5000 8080`. Esse processo **é** o cliente TCP de
-verdade (abre o socket com o servidor exatamente como o `cli_client.py`)
+Padrão: `127.0.0.1 5000 8080 127.0.0.1`. Esse processo **é** o cliente TCP
+de verdade (abre o socket com o servidor exatamente como o `cli_client.py`)
 e também expõe uma página local em `http://127.0.0.1:8080` — abra essa
 URL em qualquer navegador para jogar. Cada jogador deve rodar o seu
 próprio `web_bridge.py` (uma porta HTTP por jogador).
+
+Pra acessar de outra máquina (ex: rodando o bridge num servidor remoto e
+abrindo a página de casa, sem instalar nada local), passe `0.0.0.0` no
+4º argumento e abra a porta no firewall, ex:
+`python3 client/web_bridge.py 127.0.0.1 5000 8080 0.0.0.0`. Sem isso, o
+bridge só aceita conexão de localhost — e não tem autenticação própria,
+então só faça isso numa rede em que confia.
 
 ### 4. Bot de IA (joga sozinho)
 

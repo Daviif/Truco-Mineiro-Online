@@ -6,9 +6,15 @@ como o cli_client.py. Além disso, sobe um servidor HTTP local (stdlib,
 ThreadingHTTPServer) que serve a página em client/web/ e repassa as ações
 do navegador para o socket TCP, empurrando o estado para a página via
 Server-Sent Events (SSE). O navegador nunca fala com o servidor de truco
-diretamente — só com este processo, em localhost.
+diretamente — só com este processo, por padrão em localhost.
 
-Uso: python3 client/web_bridge.py [host_servidor] [porta_servidor] [porta_http]
+Uso: python3 client/web_bridge.py [host_servidor] [porta_servidor] [porta_http] [host_http]
+
+`host_http` é opcional (padrão `127.0.0.1`, só local). Passe `0.0.0.0` para
+aceitar conexões de fora — por exemplo, rodando este processo num servidor
+remoto e abrindo a página de outra máquina. Sem autenticação própria: quem
+acessa a porta HTTP herda a sessão já logada no servidor de truco, então só
+abra pra fora numa rede/firewall em que você confia.
 """
 
 import json
@@ -30,6 +36,10 @@ from common.protocol import MessageReader, encode
 HOST_SERVIDOR_PADRAO = "127.0.0.1"
 PORTA_SERVIDOR_PADRAO = 5000
 PORTA_HTTP_PADRAO = 8080
+# só localhost por padrão: o bridge não tem autenticação própria (quem
+# acessa a página HTTP herda a sessão já logada no servidor de truco), então
+# abrir isso pra fora exige passar o 4º argumento explicitamente.
+HOST_HTTP_PADRAO = "127.0.0.1"
 
 DIR_WEB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 RAIZ_PROJETO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -348,15 +358,19 @@ def main():
     host_servidor = sys.argv[1] if len(sys.argv) > 1 else HOST_SERVIDOR_PADRAO
     porta_servidor = int(sys.argv[2]) if len(sys.argv) > 2 else PORTA_SERVIDOR_PADRAO
     porta_http = int(sys.argv[3]) if len(sys.argv) > 3 else PORTA_HTTP_PADRAO
+    host_http = sys.argv[4] if len(sys.argv) > 4 else HOST_HTTP_PADRAO
 
     estado = EstadoCompartilhado()
     cliente_tcp = ClienteTCP(host_servidor, porta_servidor, estado)
     threading.Thread(target=cliente_tcp.escutar, daemon=True).start()
 
     handler = criar_handler(estado, cliente_tcp, host_servidor, porta_servidor)
-    httpd = ThreadingHTTPServer(("127.0.0.1", porta_http), handler)
+    httpd = ThreadingHTTPServer((host_http, porta_http), handler)
     print(f"Bridge conectado ao servidor de truco em {host_servidor}:{porta_servidor}")
-    print(f"Abra http://127.0.0.1:{porta_http} no navegador.")
+    if host_http == "0.0.0.0":
+        print(f"Abra http://<IP desta máquina>:{porta_http} no navegador.")
+    else:
+        print(f"Abra http://{host_http}:{porta_http} no navegador.")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
