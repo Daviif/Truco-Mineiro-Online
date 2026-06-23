@@ -131,7 +131,24 @@ input:focus-visible {
   gap: 0.5rem;
 }
 
-input[type="text"] {
+.campo-login--coluna {
+  flex-direction: column;
+}
+
+.abas-login {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.7rem;
+}
+
+.abas-login .aba-ativa {
+  background: var(--latao);
+  color: var(--carvao);
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"] {
   flex: 1;
   padding: 0.6rem 0.7rem;
   border-radius: 8px;

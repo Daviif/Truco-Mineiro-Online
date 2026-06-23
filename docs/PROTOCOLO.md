@@ -25,7 +25,9 @@ jogadores), `JK1`/`JK2` (coringas, só nos modos de 6/8 jogadores).
 
 | Mensagem | Campos | Finalidade |
 |---|---|---|
-| `LOGIN` | `nickname` | Registra o jogador no servidor. |
+| `LOGIN` | `nickname` | Login avulso, sem conta nem senha — só reserva o nickname pra essa conexão (usado por visitantes e bots). |
+| `REGISTRAR` | `email;senha;nickname;curso` | Cria uma conta (autenticação real, bônus do TP01) e já loga — `curso` pode vir vazio, só é guardado se o email for de domínio institucional da UFOP (ver `server/contas.py`). |
+| `ENTRAR_CONTA` | `email;senha` | Login numa conta já cadastrada. |
 | `LISTAR_MESAS` | — | Pede a lista de mesas existentes. |
 | `ENTRAR_MESA` | `modo` (2, 4, 6 ou 8) | Entra numa mesa aguardando daquele modo, ou cria uma nova. |
 | `JOGAR_CARTA` | `carta` | Joga uma carta da própria mão na rodada atual. |
@@ -71,7 +73,9 @@ continua normalmente.
 `APOSTA_INVALIDA`, `PARTIDA_NAO_INICIADA`, `PARTIDA_FINALIZADA`,
 `MENSAGEM_INVALIDA`, `TRUCO_BLOQUEADO` (mão de 10/ferro), `NAO_E_CONTRAPE`,
 `NAO_E_EQUIPE_DECISORA`, `FASE_INVALIDA` (ex.: jogar carta antes do corte,
-ou decidir a mão de 10 mais de uma vez).
+ou decidir a mão de 10 mais de uma vez), `EMAIL_EM_USO`, `EMAIL_INVALIDO`,
+`SENHA_FRACA` (mínimo 6 caracteres), `CREDENCIAIS_INVALIDAS` (email ou
+senha errados em `ENTRAR_CONTA`).
 
 ## Exemplo de troca de mensagens (2 jogadores)
 
@@ -190,3 +194,23 @@ pedir truco/aumento naquela mão (`TRUCO_BLOQUEADO`):
   primeira visita, e o bridge abre uma conexão TCP própria por cookie —
   ou seja, várias pessoas podem usar a mesma porta/URL, cada uma com seu
   próprio login na mesa, sem precisar de um bridge por jogador.
+
+## Autenticação de contas (bônus do TP01)
+
+Item de bônus do enunciado. `LOGIN;nickname` (sem senha) continua existindo
+do jeito que sempre esteve — contas são opcionais, aditivas, pra quem quiser
+identidade de verdade (pré-requisito pro ranking, que vem numa etapa
+futura). `REGISTRAR`/`ENTRAR_CONTA` persistem em SQLite
+(`server/contas.py`, `server/dados/contas.db` — nunca commitado, está no
+`.gitignore`):
+
+- Senha com hash (`hashlib.pbkdf2_hmac` + salt aleatório, stdlib, sem
+  bcrypt) — nunca guardada em texto puro.
+- "Institucional" é decidido só pelo **domínio do email**
+  (`DOMINIOS_INSTITUCIONAIS` em `server/contas.py`, ex. `ufop.edu.br`) —
+  **não** prova posse real do email (exigiria confirmação por e-mail/SMTP,
+  fora do escopo do bônus). `curso` só é guardado se o email for
+  institucional.
+- O `nickname` da conta é único globalmente (`UNIQUE` no banco) e passa a
+  ser a identidade fixa do jogador — diferente do nickname avulso de hoje,
+  que só precisa estar livre *naquele momento* entre as conexões ativas.

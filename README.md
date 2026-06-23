@@ -45,9 +45,12 @@ python3 client/cli_client.py [host] [porta]
 ```
 
 Padrão: `127.0.0.1 5000`. Depois de conectar, digite `ajuda` para ver os
-comandos disponíveis (`login`, `mesas`, `entrar <2|4|6|8>`, `jogar <carta>`,
-`cortar <subir|descer>`, `decidir <jogar|correr>`, `truco`, `aceitar`,
-`correr`, `aumentar`, `sair`).
+comandos disponíveis (`login`, `registrar`, `entrarconta`, `mesas`,
+`entrar <2|4|6|8>`, `jogar <carta>`, `cortar <subir|descer>`,
+`decidir <jogar|correr>`, `truco`, `aceitar`, `correr`, `aumentar`,
+`sair`). `login <nickname>` é avulso, sem conta nem senha (como sempre
+foi); `registrar`/`entrarconta` são autenticação de verdade, com email e
+senha (bônus do TP01 — ver `docs/PROTOCOLO.md`), opcional.
 
 Antes de cada mão, o servidor pede para o **contra-pé** cortar o baralho
 (`cortar subir` ou `cortar descer`) — quem não for o contra-pé só
@@ -75,6 +78,12 @@ primeira visita, cada navegador recebe um cookie de sessão, e por trás
 dele o bridge abre uma conexão TCP própria com o servidor (um jogador por
 cookie). Não precisa de uma porta por pessoa — todos acessam a mesma
 URL e cada um entra com o seu próprio nickname, mesa, mão etc.
+
+Na tela de login tem três abas: **Visitante** (nickname avulso, sem conta —
+como sempre foi), **Entrar** e **Criar conta** (autenticação de verdade,
+com email e senha — bônus do TP01, ver `docs/PROTOCOLO.md`). Email de
+domínio institucional da UFOP (ex. `@aluno.ufop.edu.br`) habilita o campo
+de curso, usado mais pra frente pelo ranking institucional.
 
 Pra acessar de outra máquina (ex: rodando o bridge num servidor remoto e
 abrindo a página de casa, sem instalar nada local), passe `0.0.0.0` no

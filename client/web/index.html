@@ -21,10 +21,32 @@
 
     <section id="secao-login" class="painel painel-estreito">
       <h2 class="painel-titulo">Sentar à mesa</h2>
-      <div class="campo-login">
+
+      <div class="abas-login">
+        <button id="aba-visitante" class="botao botao-secundario aba-ativa">Visitante</button>
+        <button id="aba-entrar" class="botao botao-secundario">Entrar</button>
+        <button id="aba-cadastrar" class="botao botao-secundario">Criar conta</button>
+      </div>
+
+      <div id="form-visitante" class="campo-login">
         <input id="input-nickname" type="text" placeholder="Seu nome de jogo" maxlength="20" />
         <button id="btn-login" class="botao botao-primario">Entrar</button>
       </div>
+
+      <div id="form-entrar" class="campo-login campo-login--coluna escondido">
+        <input id="input-entrar-email" type="email" placeholder="Email" />
+        <input id="input-entrar-senha" type="password" placeholder="Senha" />
+        <button id="btn-entrar-conta" class="botao botao-primario">Entrar na conta</button>
+      </div>
+
+      <div id="form-cadastrar" class="campo-login campo-login--coluna escondido">
+        <input id="input-cad-email" type="email" placeholder="Email" />
+        <input id="input-cad-senha" type="password" placeholder="Senha (mín. 6 caracteres)" />
+        <input id="input-cad-nickname" type="text" placeholder="Nome de jogo" maxlength="20" />
+        <input id="input-cad-curso" type="text" placeholder="Curso (se for email institucional da UFOP)" />
+        <button id="btn-cadastrar" class="botao botao-primario">Criar conta</button>
+      </div>
+
       <p id="aviso-login" class="texto-erro"></p>
     </section>
 

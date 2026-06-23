@@ -114,7 +114,12 @@ class ClienteCLI:
 def imprimir_ajuda():
     print(
         "Comandos disponíveis:\n"
-        "  login <nickname>        - registra seu nickname no servidor\n"
+        "  login <nickname>        - login avulso, sem conta nem senha (igual sempre foi)\n"
+        "  registrar <email> <senha> <nickname> [curso]\n"
+        "                          - cria uma conta (e já loga); curso só importa se o\n"
+        "                            email for institucional da UFOP\n"
+        "  entrarconta <email> <senha>\n"
+        "                          - login numa conta já cadastrada\n"
         "  mesas                   - lista as mesas disponíveis\n"
         "  entrar <modo>           - entra/cria uma mesa para 2, 4, 6 ou 8 jogadores\n"
         "  jogar <carta>           - joga uma carta da sua mão (código, ex: jogar 4P; ou posição 1/2/3 na mão de ferro)\n"
@@ -154,6 +159,20 @@ def main():
 
             if comando == "login":
                 cliente.enviar(constants.LOGIN, argumento)
+            elif comando == "registrar":
+                partes_conta = argumento.split(maxsplit=3)
+                if len(partes_conta) < 3:
+                    print("Uso: registrar <email> <senha> <nickname> [curso]")
+                else:
+                    email, senha, nickname = partes_conta[0], partes_conta[1], partes_conta[2]
+                    curso = partes_conta[3] if len(partes_conta) > 3 else ""
+                    cliente.enviar(constants.REGISTRAR, email, senha, nickname, curso)
+            elif comando == "entrarconta":
+                partes_conta = argumento.split()
+                if len(partes_conta) != 2:
+                    print("Uso: entrarconta <email> <senha>")
+                else:
+                    cliente.enviar(constants.ENTRAR_CONTA, partes_conta[0], partes_conta[1])
             elif comando == "mesas":
                 cliente.enviar(constants.LISTAR_MESAS)
             elif comando == "entrar":

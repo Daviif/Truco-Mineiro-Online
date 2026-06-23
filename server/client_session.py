@@ -5,7 +5,7 @@ import socket
 
 from common import constants
 from common.protocol import MessageReader, encode
-from server import game
+from server import contas, game
 
 TAMANHO_BUFFER = 4096
 
@@ -73,13 +73,49 @@ class ClientSession:
     # -- handlers de mensagens do cliente ------------------------------------
 
     def _h_login(self, campos):
+        """Login avulso, sem conta nem senha — continua existindo do jeito
+        que sempre esteve, pra visitantes e bots. Quem quiser autenticação
+        de verdade usa REGISTRAR/ENTRAR_CONTA (ver abaixo)."""
         if self.nickname is not None:
             self.enviar(constants.ERRO, constants.ERRO_MENSAGEM_INVALIDA)
             return
         if not campos or not campos[0].strip():
             self.enviar(constants.ERRO, constants.ERRO_MENSAGEM_INVALIDA)
             return
-        nickname = campos[0].strip()
+        self._concluir_login(campos[0].strip())
+
+    def _h_registrar(self, campos):
+        if self.nickname is not None:
+            self.enviar(constants.ERRO, constants.ERRO_MENSAGEM_INVALIDA)
+            return
+        if len(campos) < 3:
+            self.enviar(constants.ERRO, constants.ERRO_MENSAGEM_INVALIDA)
+            return
+        email, senha, nickname = campos[0], campos[1], campos[2]
+        curso = campos[3] if len(campos) > 3 else ""
+        try:
+            conta = self.servidor.contas.criar_conta(email, senha, nickname, curso)
+        except contas.ErroConta as erro:
+            self.enviar(constants.ERRO, erro.motivo)
+            return
+        self._concluir_login(conta.nickname)
+
+    def _h_entrar_conta(self, campos):
+        if self.nickname is not None:
+            self.enviar(constants.ERRO, constants.ERRO_MENSAGEM_INVALIDA)
+            return
+        if len(campos) < 2:
+            self.enviar(constants.ERRO, constants.ERRO_MENSAGEM_INVALIDA)
+            return
+        email, senha = campos[0], campos[1]
+        try:
+            conta = self.servidor.contas.autenticar(email, senha)
+        except contas.ErroConta as erro:
+            self.enviar(constants.ERRO, erro.motivo)
+            return
+        self._concluir_login(conta.nickname)
+
+    def _concluir_login(self, nickname):
         if not self.servidor.registrar(nickname, self):
             self.enviar(constants.ERRO, constants.ERRO_NICKNAME_EM_USO)
             return
@@ -207,6 +243,8 @@ class ClientSession:
 
     _HANDLERS = {
         constants.LOGIN: _h_login,
+        constants.REGISTRAR: _h_registrar,
+        constants.ENTRAR_CONTA: _h_entrar_conta,
         constants.LISTAR_MESAS: _h_listar_mesas,
         constants.ENTRAR_MESA: _h_entrar_mesa,
         constants.JOGAR_CARTA: _h_jogar_carta,

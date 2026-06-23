@@ -466,6 +466,16 @@ def criar_handler(gerenciador, host_servidor, porta_servidor):
             cliente_tcp = self._cliente_tcp
             rotas = {
                 "/login": lambda: cliente_tcp.enviar(constants.LOGIN, payload.get("nickname", "")),
+                "/registrar": lambda: cliente_tcp.enviar(
+                    constants.REGISTRAR,
+                    payload.get("email", ""),
+                    payload.get("senha", ""),
+                    payload.get("nickname", ""),
+                    payload.get("curso", ""),
+                ),
+                "/entrar_conta": lambda: cliente_tcp.enviar(
+                    constants.ENTRAR_CONTA, payload.get("email", ""), payload.get("senha", "")
+                ),
                 "/listar_mesas": lambda: cliente_tcp.enviar(constants.LISTAR_MESAS),
                 "/entrar_mesa": lambda: self._entrar_mesa(payload.get("modo", "")),
                 "/completar_com_bots": lambda: self._completar_com_bots(),

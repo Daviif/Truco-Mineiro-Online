@@ -1,2 +1,5 @@
 __pycache__/
 *.pyc
+
+# banco de contas (hash de senha + email de gente real — nunca commitar)
+server/dados/

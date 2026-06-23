@@ -10,6 +10,7 @@ if __name__ == "__main__":
     # permite rodar com `python3 server/server.py` sem instalar o pacote
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from server import contas
 from server.client_session import ClientSession
 from server.room_manager import RoomManager
 
@@ -24,6 +25,7 @@ class Servidor:
         self.host = host
         self.porta = porta
         self.room_manager = RoomManager()
+        self.contas = contas.ContasRepositorio()
         self._sessoes = {}  # nickname -> ClientSession
         self._lock = threading.Lock()
 

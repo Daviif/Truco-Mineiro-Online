@@ -2,6 +2,11 @@
 
 # Cliente -> Servidor
 LOGIN = "LOGIN"
+# autenticação por conta (opcional — LOGIN;nickname avulso continua existindo
+# sem mudança nenhuma, pra visitantes e bots): REGISTRAR cria a conta (e já
+# loga), ENTRAR_CONTA loga numa conta existente.
+REGISTRAR = "REGISTRAR"
+ENTRAR_CONTA = "ENTRAR_CONTA"
 LISTAR_MESAS = "LISTAR_MESAS"
 ENTRAR_MESA = "ENTRAR_MESA"
 JOGAR_CARTA = "JOGAR_CARTA"
@@ -69,6 +74,10 @@ VALOR_MAO_DE_10_DERROTA = 4
 
 # Motivos de erro padronizados (ERRO;motivo)
 ERRO_NICKNAME_EM_USO = "NICKNAME_EM_USO"
+ERRO_EMAIL_EM_USO = "EMAIL_EM_USO"
+ERRO_EMAIL_INVALIDO = "EMAIL_INVALIDO"
+ERRO_SENHA_FRACA = "SENHA_FRACA"
+ERRO_CREDENCIAIS_INVALIDAS = "CREDENCIAIS_INVALIDAS"
 ERRO_NAO_LOGADO = "NAO_LOGADO"
 ERRO_MODO_INVALIDO = "MODO_INVALIDO"
 ERRO_MESA_CHEIA = "MESA_CHEIA"

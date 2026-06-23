@@ -797,6 +797,49 @@
     if (nickname) post("/login", { nickname: nickname });
   });
 
+  // abas de login: visitante (nickname avulso, default) / entrar (conta
+  // existente) / criar conta — três formulários, só um visível por vez.
+  const ABAS_LOGIN = {
+    visitante: { aba: "aba-visitante", form: "form-visitante" },
+    entrar: { aba: "aba-entrar", form: "form-entrar" },
+    cadastrar: { aba: "aba-cadastrar", form: "form-cadastrar" },
+  };
+
+  function trocarAbaLogin(abaAlvo) {
+    Object.keys(ABAS_LOGIN).forEach(function (nome) {
+      const { aba, form } = ABAS_LOGIN[nome];
+      el(aba).classList.toggle("aba-ativa", nome === abaAlvo);
+      el(form).classList.toggle("escondido", nome !== abaAlvo);
+    });
+    el("aviso-login").textContent = "";
+  }
+
+  el("aba-visitante").addEventListener("click", function () {
+    trocarAbaLogin("visitante");
+  });
+  el("aba-entrar").addEventListener("click", function () {
+    trocarAbaLogin("entrar");
+  });
+  el("aba-cadastrar").addEventListener("click", function () {
+    trocarAbaLogin("cadastrar");
+  });
+
+  el("btn-entrar-conta").addEventListener("click", function () {
+    const email = el("input-entrar-email").value.trim();
+    const senha = el("input-entrar-senha").value;
+    if (email && senha) post("/entrar_conta", { email: email, senha: senha });
+  });
+
+  el("btn-cadastrar").addEventListener("click", function () {
+    const email = el("input-cad-email").value.trim();
+    const senha = el("input-cad-senha").value;
+    const nickname = el("input-cad-nickname").value.trim();
+    const curso = el("input-cad-curso").value.trim();
+    if (email && senha && nickname) {
+      post("/registrar", { email: email, senha: senha, nickname: nickname, curso: curso });
+    }
+  });
+
   document.querySelectorAll(".botao-modo").forEach(function (btn) {
     btn.addEventListener("click", function () {
       post("/entrar_mesa", { modo: btn.dataset.modo });
