@@ -1,0 +1,32 @@
+# Gerando trafego de protocolo em 127.0.0.1:5000
+
+# portas efemeras: ana=56560 bia=56561 | servidor=5000
+
+ ana -> LOGIN;ana
+     S->ana: LOGIN_OK;ana
+ ana -> ENTRAR_MESA;2
+     S->ana: MESA_STATUS;8;AGUARDANDO;ana
+ bia -> LOGIN;bia
+     S->bia: LOGIN_OK;bia
+ bia -> ENTRAR_MESA;2
+     S->bia: MESA_STATUS;8;EM_ANDAMENTO;ana,bia
+     S->bia: PAPEIS;ana;bia;bia
+     S->bia: PEDIDO_CORTE;bia
+     S->ana: MESA_STATUS;8;EM_ANDAMENTO;ana,bia
+     S->ana: PAPEIS;ana;bia;bia
+     S->ana: PEDIDO_CORTE;bia
+ bia -> CORTAR;DESCER
+     S->bia: INICIO_PARTIDA;7P,QP,7C;bia;2
+     S->ana: INICIO_PARTIDA;4C,JO,4E;bia;2
+ bia -> JOGAR_CARTA;7P
+     S->bia: ESTADO_RODADA;ana;bia:7P;2;
+     S->ana: ESTADO_RODADA;ana;bia:7P;2;
+ ana -> JOGAR_CARTA;4C
+     S->ana: RESULTADO_RODADA;bia:7P,ana:4C;1
+     S->ana: ESTADO_RODADA;bia;;2;
+     S->bia: RESULTADO_RODADA;bia:7P,ana:4C;1
+     S->bia: ESTADO_RODADA;bia;;2;
+ ana -> SAIR
+ bia -> SAIR
+
+# Sessao encerrada. Pare a captura no Wireshark agora.
