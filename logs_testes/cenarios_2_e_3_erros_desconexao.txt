@@ -1,0 +1,29 @@
+# TESTES FUNCIONAIS - Truco Mineiro Online
+# alvo: 127.0.0.1:5000
+
+=== CENARIO 2: DESCONEXAO INESPERADA ===
+   ana e bia numa mesa, partida em andamento.
+   -> ana CAI (fechamento abrupto do socket, sem SAIR)
+      S->bia: JOGADOR_SAIU;ana
+   [PASS] servidor detectou a queda e avisou bia com JOGADOR_SAIU
+   [PASS] servidor continuou no ar (novo cliente logou apos a queda)
+
+=== CENARIO 3: TRATAMENTO DE ERROS ===
+   LISTAR_MESAS sem login -> ['ERRO;NAO_LOGADO']
+   [PASS] comando antes do login -> ERRO;NAO_LOGADO
+   LOGIN;ana duplicado -> ['ERRO;NICKNAME_EM_USO']
+   [PASS] nick repetido -> ERRO;NICKNAME_EM_USO
+   ENTRAR_MESA;3 -> ['ERRO;MODO_INVALIDO']
+   [PASS] modo invalido -> ERRO;MODO_INVALIDO
+   XPTO_NAO_EXISTE -> ['ERRO;MENSAGEM_INVALIDA']
+   [PASS] comando desconhecido -> ERRO;MENSAGEM_INVALIDA
+   JOGAR fora da vez -> ['ERRO;FORA_DE_TURNO']
+   [PASS] jogar fora da vez -> ERRO;FORA_DE_TURNO
+   JOGAR carta inexistente -> ['ERRO;CARTA_INVALIDA']
+   [PASS] jogar carta que nao tem -> ERRO;CARTA_INVALIDA
+
+=== RESUMO ===
+Cenario 2 (desconexao inesperada): PASS
+Cenario 3 (tratamento de erros):   PASS
+
+Todos os cenarios OK.
