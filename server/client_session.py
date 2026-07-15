@@ -238,6 +238,21 @@ class ClientSession:
             resultado = mesa.partida.correr(self.nickname)
             self._notificar_fim_mao(mesa, resultado)
 
+    def _h_chat(self, campos):
+        if not self._exigir_login():
+            return
+        mesa = self.servidor.room_manager.mesa_do_jogador(self.nickname)
+        if mesa is None:
+            self.enviar(constants.ERRO, constants.ERRO_NAO_EM_MESA)
+            return
+        if not campos:
+            return
+        texto = ";".join(campos).strip()[:200]
+        if not texto:
+            return
+        for jogador in mesa.jogadores:
+            self.servidor.enviar_para(jogador, constants.CHAT, self.nickname, texto)
+
     def _h_sair(self, campos):
         self._desconectar()
 
@@ -254,6 +269,7 @@ class ClientSession:
         constants.CORRER: _h_correr,
         constants.CORTAR: _h_cortar,
         constants.DECIDIR_MAO_10: _h_decidir_mao_10,
+        constants.CHAT: _h_chat,
         constants.SAIR: _h_sair,
     }
 

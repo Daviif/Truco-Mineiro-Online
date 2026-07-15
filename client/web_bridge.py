@@ -54,6 +54,9 @@ NOME_COOKIE = "truco_sessao"
 DIR_WEB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 RAIZ_PROJETO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SCRIPT_BOT = os.path.join(RAIZ_PROJETO, "bot", "cliente_bot.py")
+# espelha bot.estrategia.DIFICULDADES — não importa o módulo aqui pra não
+# acoplar o bridge (processo leve) à lógica de IA, que roda em subprocessos.
+DIFICULDADES_BOT = {"FACIL", "MEDIO", "DIFICIL"}
 
 ARQUIVOS_ESTATICOS = {
     "/": ("index.html", "text/html; charset=utf-8"),
@@ -106,6 +109,7 @@ class EstadoCompartilhado:
             "aviso": None,
             "modo_solicitado": None,
             "cartas_parceiros": None,
+            "chat": [],
         }
         self._assinantes = []
 
@@ -282,6 +286,15 @@ class ClienteTCP:
             self.estado.atualizar(fim_partida=campos[0])
         elif tipo == constants.JOGADOR_SAIU:
             self.estado.atualizar(aviso=f"O jogador '{campos[0]}' saiu da mesa.")
+        elif tipo == constants.CHAT:
+            nick = campos[0]
+            texto = ";".join(campos[1:])
+            with self.estado.lock:
+                chat = list(self.estado.dados.get("chat", []))
+                chat.append({"nick": nick, "texto": texto})
+                if len(chat) > 50:
+                    chat = chat[-50:]
+            self.estado.atualizar(chat=chat)
 
 
 class ErroSessao(Exception):
@@ -431,11 +444,13 @@ def criar_handler(gerenciador, host_servidor, porta_servidor):
                 pass
             return self._cliente_tcp.enviar(constants.ENTRAR_MESA, modo_txt)
 
-        def _completar_com_bots(self):
+        def _completar_com_bots(self, dificuldade):
             """Spawna bots reais (bot/cliente_bot.py, clientes TCP de verdade,
             cada um seu próprio processo) para preencher os assentos que
             faltam na mesa atual. Não é um caso especial do servidor: pro
             servidor, cada bot é só mais um cliente TCP entrando na mesa."""
+            if dificuldade not in DIFICULDADES_BOT:
+                dificuldade = "MEDIO"
             modo = self._estado.dados.get("modo_solicitado")
             mesa = self._estado.dados.get("mesa")
             if modo is None or mesa is None:
@@ -444,7 +459,15 @@ def criar_handler(gerenciador, host_servidor, porta_servidor):
             for _ in range(max(0, faltantes)):
                 nickname_bot = f"{constants.PREFIXO_NICKNAME_BOT}{random.randint(10000, 99999)}"
                 subprocess.Popen(
-                    [sys.executable, SCRIPT_BOT, host_servidor, str(porta_servidor), nickname_bot, str(modo)]
+                    [
+                        sys.executable,
+                        SCRIPT_BOT,
+                        host_servidor,
+                        str(porta_servidor),
+                        nickname_bot,
+                        str(modo),
+                        dificuldade,
+                    ]
                 )
             return True
 
@@ -478,7 +501,7 @@ def criar_handler(gerenciador, host_servidor, porta_servidor):
                 ),
                 "/listar_mesas": lambda: cliente_tcp.enviar(constants.LISTAR_MESAS),
                 "/entrar_mesa": lambda: self._entrar_mesa(payload.get("modo", "")),
-                "/completar_com_bots": lambda: self._completar_com_bots(),
+                "/completar_com_bots": lambda: self._completar_com_bots(payload.get("dificuldade", "MEDIO")),
                 "/jogar_carta": lambda: self._jogar_carta(payload.get("carta", "")),
                 "/cortar": lambda: cliente_tcp.enviar(constants.CORTAR, payload.get("direcao", "")),
                 "/decidir_mao_10": lambda: cliente_tcp.enviar(constants.DECIDIR_MAO_10, payload.get("decisao", "")),
@@ -486,6 +509,9 @@ def criar_handler(gerenciador, host_servidor, porta_servidor):
                 "/aceitar": lambda: cliente_tcp.enviar(constants.ACEITAR),
                 "/correr": lambda: cliente_tcp.enviar(constants.CORRER),
                 "/aumentar": lambda: cliente_tcp.enviar(constants.AUMENTAR),
+                "/chat": lambda: cliente_tcp.enviar(
+                    constants.CHAT, payload.get("texto", "").strip()[:200]
+                ),
                 "/sair": lambda: self._sair(),
             }
             acao = rotas.get(self.path)

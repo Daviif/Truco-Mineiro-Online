@@ -3,7 +3,11 @@ common/protocol.py que o cli_client.py e o web_bridge.py), só que em vez de
 um humano decidindo as jogadas, usa `bot.estrategia` (Minimax + Alfa-Beta
 sobre determinizações, mais heurísticas de aposta) para jogar sozinho.
 
-Uso: python3 bot/cliente_bot.py [host] [porta] [nickname] [modo]
+Uso: python3 bot/cliente_bot.py [host] [porta] [nickname] [modo] [dificuldade]
+
+`dificuldade` é opcional (`FACIL`, `MEDIO` ou `DIFICIL`, padrão `MEDIO` — ver
+`bot.estrategia.DIFICULDADES`): controla a profundidade/amostras da busca e
+os limiares de aposta (inclusive ruído e blefe deliberado).
 """
 
 import os
@@ -37,7 +41,11 @@ def _parse_cartas_csv(csv):
 
 
 class ClienteBot:
-    def __init__(self, host, porta, nickname, modo):
+    def __init__(self, host, porta, nickname, modo, dificuldade="MEDIO"):
+        if dificuldade not in estrategia.DIFICULDADES:
+            opcoes = ", ".join(estrategia.DIFICULDADES)
+            raise ValueError(f"dificuldade '{dificuldade}' inválida — use uma de: {opcoes}")
+        self.config = estrategia.DIFICULDADES[dificuldade]
         self.nickname_desejado = nickname
         self.modo = modo
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -64,6 +72,14 @@ class ClienteBot:
         # passou a vir primeiro).
         self.decisao_mao_10_pendente = False
         self.placar = {0: 0, 1: 0}
+
+        # modelagem de adversário (por equipe, não por jogador — o protocolo
+        # só identifica a equipe em PEDIDO_TRUCO/ESTADO_RODADA, não quem
+        # especificamente pediu): quantas vezes cada equipe teve um pedido
+        # de aposta aceito (equipe_apostou) e quantas dessas ela venceu a
+        # mão. Ver `_taxa_blefe_estimada`.
+        self.estatisticas_equipe = {0: {"pedidos": 0, "vitorias": 0}, 1: {"pedidos": 0, "vitorias": 0}}
+        self._equipe_apostou_atual = None
 
         self.cartas_rodada_atual = []
         self.jogadas_completas_na_mao = {}
@@ -166,6 +182,7 @@ class ClienteBot:
         self.mao_especial = None
         self.mao_de_ferro_ativa = False
         self.decisao_mao_10_pendente = False
+        self._equipe_apostou_atual = None
         self.jogadas_completas_na_mao = {}
         self.resultados_rodadas_na_mao = []
         self.cartas_rodada_atual = []
@@ -210,8 +227,9 @@ class ClienteBot:
     def _executar_decisao_mao_10(self):
         if not self._ativo or self.mao_especial is None:
             return
-        decisao = estrategia.decidir_mao_10(self.mao, self.modo_real)
-        self._log(f"mão de 10 — decisão: {decisao}")
+        decisao = estrategia.decidir_mao_10(self.mao, self.modo_real, self.config)
+        forca = estrategia.avaliar_forca_mao(self.mao, self.modo_real)
+        self._log(f"mão de 10 — força (sem ruído) {forca:.3f} — decisão: {decisao}")
         self.enviar(constants.DECIDIR_MAO_10, decisao)
 
     def _tratar_inicio_partida(self, campos):
@@ -252,7 +270,7 @@ class ClienteBot:
         return resultado
 
     def _tratar_estado_rodada(self, campos):
-        vez, cartas_csv, valor, _equipe_apostou = campos
+        vez, cartas_csv, valor, equipe_apostou = campos
         self.cartas_rodada_atual = _parse_cartas_csv(cartas_csv)
         self.vez = vez
         self.valor_mao = valor
@@ -261,6 +279,10 @@ class ClienteBot:
         # jogada ou de decidir "jogar" na mão de 10) — se chegou, qualquer
         # decisão de mão de 10 pendente já foi resolvida.
         self.decisao_mao_10_pendente = False
+        # quem "tem a palavra" no valor atual (pedido aceito) — guardado pra
+        # quando a mão terminar saber de quem é a estatística de blefe (ver
+        # _tratar_resultado_mao/_taxa_blefe_estimada).
+        self._equipe_apostou_atual = int(equipe_apostou) if equipe_apostou else None
         self._agir_se_for_minha_vez()
 
     def _tratar_resultado_rodada(self, campos):
@@ -271,9 +293,30 @@ class ClienteBot:
         self.cartas_rodada_atual = []
 
     def _tratar_resultado_mao(self, campos):
-        _vencedor, placar0, placar1 = campos
+        vencedor, placar0, placar1 = campos
+        if self._equipe_apostou_atual is not None:
+            stats = self.estatisticas_equipe[self._equipe_apostou_atual]
+            stats["pedidos"] += 1
+            if vencedor != "EMPATE" and int(vencedor) == self._equipe_apostou_atual:
+                stats["vitorias"] += 1
+        self._equipe_apostou_atual = None
         self.placar = {0: int(placar0), 1: int(placar1)}
         self.decisao_mao_10_pendente = False
+
+    def _taxa_blefe_estimada(self, equipe):
+        """Estimativa (Bayes informal, com suavização de Laplace) de quão
+        frequentemente a equipe pede aposta e depois perde a mão — sinal
+        fraco de blefe (também pode ser só mão boa que perdeu na rodada
+        seguinte por variância; por isso o ajuste que isso alimenta em
+        `_executar_resposta_pedido` é pequeno e com teto). Só usa a
+        estimativa com pelo menos 3 amostras — com menos que isso é só
+        prior insuficiente, viés de poucos dados."""
+        stats = self.estatisticas_equipe[equipe]
+        pedidos = stats["pedidos"]
+        if pedidos < 3:
+            return 0.0
+        taxa_vitoria = (stats["vitorias"] + 1) / (pedidos + 2)
+        return max(0.0, 1.0 - taxa_vitoria)
 
     def _tratar_pedido_truco(self, campos):
         equipe, valor = campos
@@ -287,8 +330,19 @@ class ClienteBot:
             return
         valor = self.pedido_pendente["valor"]
         pode_aumentar = valor < constants.VALOR_DOZE
-        decisao = estrategia.decidir_resposta_pedido(self.mao, self.modo_real, pode_aumentar)
-        self._log(f"respondendo pedido de {valor}: {decisao}")
+        equipe_solicitante = self.pedido_pendente["equipe"]
+        taxa_blefe = self._taxa_blefe_estimada(equipe_solicitante)
+        # teto no deslocamento: a taxa medida confunde "tendência a blefar"
+        # com "sorte/força geral da equipe" (perder a mão depois de pedir
+        # não é prova de blefe) — um sinal ruidoso não pode mexer demais no
+        # limiar, mesmo já com as >=3 amostras mínimas.
+        ajuste = min(0.10, taxa_blefe * 0.15)
+        decisao = estrategia.decidir_resposta_pedido(self.mao, self.modo_real, pode_aumentar, self.config, ajuste)
+        forca = estrategia.avaliar_forca_mao(self.mao, self.modo_real)
+        self._log(
+            f"respondendo pedido de {valor} (força sem ruído {forca:.3f}, "
+            f"taxa de blefe estimada da equipe {equipe_solicitante}: {taxa_blefe:.2f}): {decisao}"
+        )
         if decisao == "ACEITAR":
             self.enviar(constants.ACEITAR)
         elif decisao == "AUMENTAR":
@@ -327,9 +381,10 @@ class ClienteBot:
         if (
             self.valor_mao == str(constants.VALOR_INICIAL)
             and self.mao_especial is None
-            and estrategia.deve_chamar_truco(self.mao, self.modo_real)
+            and estrategia.deve_chamar_truco(self.mao, self.modo_real, self.config)
         ):
-            self._log(f"mão forte ({self.mao}) — chamando truco antes de jogar.")
+            forca = estrategia.avaliar_forca_mao(self.mao, self.modo_real)
+            self._log(f"chamando truco (mão {self.mao}, força sem ruído {forca:.3f}).")
             self.enviar(constants.TRUCO)
             return
 
@@ -343,6 +398,7 @@ class ClienteBot:
             self.cartas_rodada_atual,
             self.resultados_rodadas_na_mao,
             self._maos_conhecidas_restantes(),
+            self.config,
         )
         self._log(f"jogando {carta} (mão atual: {self.mao})")
         self.enviar(constants.JOGAR_CARTA, carta)
@@ -354,8 +410,9 @@ def main():
     porta = int(sys.argv[2]) if len(sys.argv) > 2 else PORTA_PADRAO
     nickname = sys.argv[3] if len(sys.argv) > 3 else f"{constants.PREFIXO_NICKNAME_BOT}{random.randint(100, 999)}"
     modo = int(sys.argv[4]) if len(sys.argv) > 4 else MODO_PADRAO
+    dificuldade = sys.argv[5] if len(sys.argv) > 5 else "MEDIO"
 
-    bot = ClienteBot(host, porta, nickname, modo)
+    bot = ClienteBot(host, porta, nickname, modo, dificuldade)
     thread = threading.Thread(target=bot.escutar, daemon=True)
     thread.start()
 

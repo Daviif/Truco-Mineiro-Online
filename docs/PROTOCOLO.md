@@ -37,6 +37,7 @@ jogadores), `JK1`/`JK2` (coringas, só nos modos de 6/8 jogadores).
 | `CORRER` | — | Corre do pedido de aposta pendente; a mão termina e a equipe solicitante ganha o valor anterior ao pedido. |
 | `CORTAR` | `direcao` (`SUBIR` ou `DESCER`) | O contra-pé corta o baralho antes da distribuição de cada mão. |
 | `DECIDIR_MAO_10` | `decisao` (`JOGAR` ou `CORRER`) | A equipe com 10+ pontos decide se joga a mão de 10 ou corre dela. |
+| `CHAT` | `texto` (até 200 caracteres) | Envia uma mensagem de chat para todos os jogadores da mesa. |
 | `SAIR` | — | Encerra a conexão de forma adequada (libera o lugar na mesa). |
 
 ## Mensagens Servidor → Cliente
@@ -57,6 +58,7 @@ jogadores), `JK1`/`JK2` (coringas, só nos modos de 6/8 jogadores).
 | `PEDIDO_TRUCO` | `equipe_solicitante;valor_pedido` | Alguém pediu truco/aumento; a equipe adversária deve responder com `ACEITAR`, `CORRER` ou `AUMENTAR`. |
 | `FIM_PARTIDA` | `equipe_vencedora` | A partida acabou (alguma equipe atingiu 12 pontos). |
 | `JOGADOR_SAIU` | `nickname` | Um jogador da mesa se desconectou ou saiu. |
+| `CHAT` | `nickname;texto` | Retransmissão de um `CHAT` recebido: o servidor reenvia para todos os jogadores da mesa (inclusive quem enviou). |
 | `ERRO` | `motivo` | Erro de protocolo ou jogada inválida (ver lista de motivos abaixo). |
 
 Quando um jogador sai (ou cai) e não sobra nenhum humano na mesa — só

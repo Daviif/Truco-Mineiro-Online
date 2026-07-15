@@ -32,21 +32,56 @@ import random
 
 from server.game import MANILHAS_POR_MODO, forca_carta, montar_baralho, resolver_mao
 
-# Quantas determinizações (sorteios das mãos adversárias) resolver por
-# decisão. Mais amostras => decisão mais robusta, porém mais lenta.
-AMOSTRAS_DETERMINIZACAO = 24
+# Presets de dificuldade: cada um é um config completo (busca + apostas),
+# passado explicitamente pra cada função de decisão (default MEDIO, pra
+# quem já chama essas funções sem o argumento novo continuar funcionando
+# sem mudança de comportamento).
+#
+# Lógica por trás dos números: no FACIL, menos amostras/profundidade =
+# busca mais rasa = joga carta um pouco pior tecnicamente; limiares mais
+# altos = só aposta com mão muito boa = padrão fácil de explorar por um
+# humano. No DIFICIL é o oposto: busca mais robusta e mais disposto a
+# apostar com mão mediana (pressão), comportamento de jogador experiente.
+# `sigma_ruido` e `prob_blefe` ver `_forca_com_ruido`/`deve_chamar_truco`.
+DIFICULDADES = {
+    "FACIL": dict(
+        amostras=10,
+        profundidade_maxima=6,
+        limiar_chamar_truco=0.92,
+        limiar_aumentar=0.97,
+        limiar_aceitar=0.70,
+        limiar_mao_10=0.75,
+        sigma_ruido=0.18,
+        prob_blefe=0.03,
+    ),
+    "MEDIO": dict(
+        amostras=24,
+        profundidade_maxima=10,
+        limiar_chamar_truco=0.78,
+        limiar_aumentar=0.88,
+        limiar_aceitar=0.55,
+        limiar_mao_10=0.60,
+        sigma_ruido=0.08,
+        prob_blefe=0.08,
+    ),
+    "DIFICIL": dict(
+        amostras=40,
+        profundidade_maxima=14,
+        limiar_chamar_truco=0.70,
+        limiar_aumentar=0.85,
+        limiar_aceitar=0.48,
+        limiar_mao_10=0.55,
+        sigma_ruido=0.04,
+        prob_blefe=0.14,
+    ),
+}
 
-# Profundidade máxima da busca Minimax dentro de cada amostra, em número de
-# jogadas (cartas postas na mesa). Acima disso, usa-se a heurística _eval.
-PROFUNDIDADE_MAXIMA = 10
+_CONFIG_PADRAO = DIFICULDADES["MEDIO"]
 
-# Limiares (0..~1.5) da heurística de força de mão, usados nas decisões de
-# aposta (não passam pela busca: avaliar o comportamento de aposta do
-# adversário exigiria modelar a estratégia dele, fora do escopo do curso).
-LIMIAR_CHAMAR_TRUCO = 0.78
-LIMIAR_AUMENTAR = 0.88
-LIMIAR_ACEITAR = 0.55
-LIMIAR_JOGAR_MAO_10 = 0.60
+# margem (na mesma escala 0..~1.5 de avaliar_forca_mao) abaixo do limiar de
+# truco a partir da qual uma mão é "fraca o bastante" pra blefe deliberado
+# valer a pena cogitar (ver deve_chamar_truco).
+MARGEM_BLEFE = 0.15
 
 
 def _forca_normalizada(carta, modo):
@@ -72,23 +107,54 @@ def decidir_corte():
     return random.choice(["SUBIR", "DESCER"])
 
 
-def decidir_mao_10(minha_mao, modo):
-    return "JOGAR" if avaliar_forca_mao(minha_mao, modo) >= LIMIAR_JOGAR_MAO_10 else "CORRER"
+def _forca_com_ruido(cartas, modo, config):
+    """Ruído gaussiano na força "verdadeira" da mão antes de comparar com
+    limiar: sozinho já quebra o determinismo das decisões de aposta (duas
+    mãos de força quase igual podem decidir diferente, como a variação de
+    humor/leitura de jogo de um humano). `avaliar_forca_mao` continua sendo
+    a avaliação "verdadeira" — só a política de decisão é que fica
+    probabilística."""
+    return avaliar_forca_mao(cartas, modo) + random.gauss(0, config["sigma_ruido"])
 
 
-def decidir_resposta_pedido(minha_mao, modo, pode_aumentar):
+def decidir_mao_10(minha_mao, modo, config=None):
+    config = config or _CONFIG_PADRAO
+    forca = _forca_com_ruido(minha_mao, modo, config)
+    return "JOGAR" if forca >= config["limiar_mao_10"] else "CORRER"
+
+
+def decidir_resposta_pedido(minha_mao, modo, pode_aumentar, config=None, ajuste_limiar_aceitar=0.0):
     """Decide a resposta a um TRUCO/AUMENTAR do adversário: aceitar, correr
-    ou (se a mão estiver muito forte e ainda houver teto) reaumentar."""
-    forca = avaliar_forca_mao(minha_mao, modo)
-    if pode_aumentar and forca >= LIMIAR_AUMENTAR:
+    ou (se a mão estiver muito forte e ainda houver teto) reaumentar.
+
+    `ajuste_limiar_aceitar`: deslocamento (pra baixo) do limiar de aceitar,
+    vindo da modelagem do adversário em `cliente_bot.py` — equipe que
+    historicamente pede e depois perde a mão (sinal fraco de blefe, ver
+    `ClienteBot._taxa_blefe_estimada`) passa a ser mais "chamada".
+    """
+    config = config or _CONFIG_PADRAO
+    forca = _forca_com_ruido(minha_mao, modo, config)
+    if pode_aumentar and forca >= config["limiar_aumentar"]:
         return "AUMENTAR"
-    if forca >= LIMIAR_ACEITAR:
+    if forca >= config["limiar_aceitar"] - ajuste_limiar_aceitar:
         return "ACEITAR"
     return "CORRER"
 
 
-def deve_chamar_truco(minha_mao, modo):
-    return avaliar_forca_mao(minha_mao, modo) >= LIMIAR_CHAMAR_TRUCO
+def deve_chamar_truco(minha_mao, modo, config=None):
+    config = config or _CONFIG_PADRAO
+    forca_real = avaliar_forca_mao(minha_mao, modo)
+    forca = forca_real + random.gauss(0, config["sigma_ruido"])
+    if forca >= config["limiar_chamar_truco"]:
+        return True
+    # blefe deliberado: mão genuinamente fraca (não só "ruído desfavorável")
+    # ainda assim chama truco com probabilidade fixa baixa — é o que
+    # realmente simula blefe, não só ruído. Blefar sempre que a mão for
+    # fraca seria um padrão aprendível por um humano; uma frequência baixa
+    # e fixa é o que torna a estratégia não-explorável no longo prazo
+    # (estratégia mista / equilíbrio de Nash em forma simplificada).
+    mao_fraca = forca_real < config["limiar_chamar_truco"] - MARGEM_BLEFE
+    return mao_fraca and random.random() < config["prob_blefe"]
 
 
 # -- busca Minimax + Alfa-Beta sobre uma amostra (informação perfeita) ------
@@ -155,13 +221,21 @@ def _aplicar_jogada(no, jogador, carta, equipe_de, modo):
 
 
 def _eval_heuristico(no, equipe_de, minha_equipe, modo):
-    soma_minha = sum(
-        _forca_normalizada(c, modo) for j, cartas in no.maos.items() if equipe_de[j] == minha_equipe for c in cartas
-    )
-    soma_adversaria = sum(
-        _forca_normalizada(c, modo) for j, cartas in no.maos.items() if equipe_de[j] != minha_equipe for c in cartas
-    )
-    return soma_minha - soma_adversaria
+    """Avaliação heurística (corte de profundidade) de um estado: não soma
+    a força de todas as cartas de cada equipe — numa rodada só a carta mais
+    forte da equipe compete de verdade, o resto é secundário. Mesma lógica
+    de peso de `avaliar_forca_mao` (carta mais forte com peso total + resto
+    com peso reduzido), só que aplicada por equipe em vez de por jogador —
+    mantém a heurística de busca consistente com a heurística de apostas."""
+
+    def valor_equipe(equipe):
+        cartas = [c for j, mao in no.maos.items() if equipe_de[j] == equipe for c in mao]
+        if not cartas:
+            return 0.0
+        forcas = sorted((_forca_normalizada(c, modo) for c in cartas), reverse=True)
+        return forcas[0] + sum(forcas[1:]) * 0.4
+
+    return valor_equipe(minha_equipe) - valor_equipe(1 - minha_equipe)
 
 
 def _minimax(no, equipe_de, minha_equipe, modo, profundidade, alfa, beta):
@@ -212,6 +286,7 @@ def escolher_carta(
     cartas_rodada_atual,
     resultados_rodadas_concluidas,
     maos_conhecidas=None,
+    config=None,
 ):
     """Escolhe a carta da minha mão com melhor valor médio via Minimax +
     Alfa-Beta sobre várias determinizações das mãos adversárias.
@@ -231,10 +306,14 @@ def escolher_carta(
     `CARTAS_PARCEIROS` no protocolo). Esses jogadores entram fixos em toda
     determinização, sem sorteio, e suas cartas saem do conjunto de
     desconhecidas.
+    `config`: preset de dificuldade (ver `DIFICULDADES`); controla só
+    `amostras`/`profundidade_maxima` aqui (os limiares de aposta não se
+    aplicam à escolha de carta).
     """
     if len(minha_mao) == 1:
         return minha_mao[0]
 
+    config = config or _CONFIG_PADRAO
     maos_conhecidas = maos_conhecidas or {}
     minha_equipe = equipe_de[meu_nickname]
     outros = [j for j in jogadores if j != meu_nickname]
@@ -267,7 +346,8 @@ def escolher_carta(
     pontuacao = {carta: 0.0 for carta in minha_mao}
     amostras_validas = 0
     tentativas = 0
-    while amostras_validas < AMOSTRAS_DETERMINIZACAO and tentativas < AMOSTRAS_DETERMINIZACAO * 3:
+    amostras = config["amostras"]
+    while amostras_validas < amostras and tentativas < amostras * 3:
         tentativas += 1
         if sum(tamanhos.values()) != len(desconhecidas):
             break  # estado inconsistente (não deveria ocorrer); evita sortear errado
@@ -279,7 +359,7 @@ def escolher_carta(
         no_raiz = _NoBusca(maos, ordem, vez_index, list(cartas_rodada_atual), list(resultados_rodadas_concluidas))
 
         total_restante = sum(len(c) for c in maos.values()) - len(cartas_rodada_atual)
-        profundidade = min(PROFUNDIDADE_MAXIMA, total_restante)
+        profundidade = min(config["profundidade_maxima"], total_restante)
 
         for carta in minha_mao:
             novo_no = _aplicar_jogada(no_raiz, meu_nickname, carta, equipe_de, modo)

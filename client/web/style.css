@@ -301,6 +301,22 @@ input[type="password"] {
   padding: 0 0.7rem 0.4rem;
 }
 
+.area-principal {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-height: 0;
+}
+
+.area-jogo {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .barra-mesa {
   flex: 0 0 auto;
   display: flex;
@@ -337,6 +353,21 @@ input[type="password"] {
   font-size: 1.2rem;
   color: var(--marfim-escuro);
   margin: 0;
+}
+
+.completar-bots-linha {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.select-dificuldade {
+  padding: 0.35rem 0.55rem;
+  font-size: 0.85rem;
+  background: var(--madeira-escura);
+  border: 1px solid var(--madeira-clara);
+  border-radius: 6px;
+  color: var(--marfim);
 }
 
 .palco-jogo {
@@ -938,9 +969,36 @@ pelo app.js. Cobre a mesa inteira (igual ao .modal-fundo, mas só dentro da
   white-space: nowrap;
 }
 
-.carta.curinga .naipe-central {
-  font-size: 0.8rem;
-  letter-spacing: 0.03em;
+.curinga-centro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.chalice-icon {
+  width: clamp(20px, 4vh, 36px);
+  height: auto;
+}
+
+.carta--mini .chalice-icon {
+  width: clamp(10px, 2.2vh, 18px);
+}
+
+.curinga-label {
+  font-size: 0.42rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.carta--mini .curinga-label {
+  display: none;
+}
+
+.carta.curinga.curinga-letrado {
+  color: var(--latao);
 }
 
 .carta.virada {
@@ -1111,7 +1169,89 @@ pelo app.js. Cobre a mesa inteira (igual ao .modal-fundo, mas só dentro da
   margin: 0;
 }
 
+/* ---------- chat ---------- */
+
+.painel-chat {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--madeira-clara);
+  border-radius: 8px;
+  margin-top: 0.3rem;
+  max-height: clamp(90px, 16vh, 150px);
+  overflow: hidden;
+}
+
+.lista-chat {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.35rem 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  min-height: 0;
+  scroll-behavior: smooth;
+}
+
+.chat-mensagem {
+  font-size: 0.78rem;
+  color: var(--marfim-escuro);
+  word-break: break-word;
+  line-height: 1.35;
+}
+
+.chat-nick {
+  font-weight: 700;
+  color: var(--latao-claro);
+}
+
+.chat-nick-proprio {
+  color: var(--feltro-claro);
+}
+
+.chat-form {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.3rem 0.5rem;
+  border-top: 1px solid var(--madeira-media);
+  flex-shrink: 0;
+}
+
+.chat-form input[type="text"] {
+  flex: 1;
+  padding: 0.28rem 0.55rem;
+  font-size: 0.8rem;
+  background: var(--madeira-escura);
+  border-color: var(--madeira-clara);
+  color: var(--marfim);
+}
+
+.botao-chat {
+  padding: 0.28rem 0.7rem;
+  font-size: 0.8rem;
+}
+
 /* ---------- responsividade ---------- */
+
+@media (min-width: 860px) {
+  .cena-mesa {
+    max-width: 1140px;
+  }
+
+  .area-principal {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 0.8rem;
+  }
+
+  .painel-chat {
+    order: -1;
+    flex: 0 0 280px;
+    max-height: none;
+    margin-top: 0;
+  }
+}
 
 @media (max-width: 560px) {
   .assento {

@@ -42,9 +42,24 @@
     return !!lista && lista.indexOf(carta) !== -1;
   }
 
+  function criarChaliceSvg() {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 40 56");
+    svg.setAttribute("aria-hidden", "true");
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    // bowl (trapézio com base arredondada) + haste + base
+    path.setAttribute(
+      "d",
+      "M5,3 L35,3 L27,24 Q20,34 13,24 Z M17,24 L17,40 L23,40 L23,24 Z M5,40 L35,40 L35,46 L5,46 Z"
+    );
+    path.setAttribute("fill", "currentColor");
+    svg.appendChild(path);
+    return svg;
+  }
+
   function parseCarta(carta) {
     if (carta.indexOf("JK") === 0) {
-      return { curinga: true, rank: carta };
+      return { curinga: true, rank: carta, letrado: carta === "JK2" };
     }
     const naipeChar = carta.slice(-1);
     const rank = carta.slice(0, -1);
@@ -69,9 +84,17 @@
     } else {
       const info = parseCarta(carta);
       if (info.curinga) {
+        const ehLetrado = !!info.letrado;
         elCarta.classList.add("curinga");
+        if (ehLetrado) elCarta.classList.add("curinga-letrado");
         elCarta.appendChild(criarSpan("indice", "★"));
-        elCarta.appendChild(criarSpan("naipe-central", "CURINGA"));
+        const centro = document.createElement("div");
+        centro.className = "curinga-centro";
+        const chalice = criarChaliceSvg();
+        chalice.classList.add("chalice-icon");
+        centro.appendChild(chalice);
+        centro.appendChild(criarSpan("curinga-label", ehLetrado ? "LETRADO" : "CURINGA"));
+        elCarta.appendChild(centro);
         elCarta.appendChild(criarSpan("indice inferior", "★"));
       } else {
         if (info.cor === "vermelha") elCarta.classList.add("cor-vermelha");
@@ -352,6 +375,9 @@
     el("ultimo-aviso").textContent = estado.aviso || "";
 
     renderizarMesas(estado.mesas_disponiveis || []);
+
+    el("painel-chat").classList.toggle("escondido", !estado.mesa);
+    if (estado.mesa) renderizarChat(estado);
 
     if (estado.mesa) {
       el("info-mesa-id").textContent = estado.mesa.id;
@@ -785,6 +811,43 @@
     }
   }
 
+  // -- chat --
+
+  let chatTamanhoAnterior = 0;
+
+  function renderizarChat(estado) {
+    const lista = el("lista-chat");
+    const mensagens = estado.chat || [];
+    if (mensagens.length === chatTamanhoAnterior) return;
+    limpar(lista);
+    mensagens.forEach(function (msg) {
+      const linha = document.createElement("div");
+      linha.className = "chat-mensagem";
+      const nick = document.createElement("span");
+      nick.className = "chat-nick" + (msg.nick === meuNickname ? " chat-nick-proprio" : "");
+      nick.textContent = msg.nick + ": ";
+      linha.appendChild(nick);
+      linha.appendChild(document.createTextNode(msg.texto));
+      lista.appendChild(linha);
+    });
+    lista.scrollTop = lista.scrollHeight;
+    chatTamanhoAnterior = mensagens.length;
+  }
+
+  function enviarChat() {
+    const input = el("input-chat");
+    const texto = input.value.trim();
+    if (texto) {
+      post("/chat", { texto: texto });
+      input.value = "";
+    }
+  }
+
+  el("btn-chat").addEventListener("click", enviarChat);
+  el("input-chat").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") enviarChat();
+  });
+
   function conectarEventos() {
     const fonte = new EventSource("/events");
     fonte.onmessage = function (evento) {
@@ -851,7 +914,7 @@
   });
 
   el("btn-completar-bots").addEventListener("click", function () {
-    post("/completar_com_bots");
+    post("/completar_com_bots", { dificuldade: el("select-dificuldade-bot").value });
   });
 
   el("btn-corte-descer").addEventListener("click", function () {

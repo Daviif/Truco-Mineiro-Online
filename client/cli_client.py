@@ -99,6 +99,10 @@ class ClienteCLI:
             print(f"\n[FIM DE PARTIDA] equipe {campos[0]} venceu a partida!")
         elif tipo == constants.JOGADOR_SAIU:
             print(f"\n[Aviso] o jogador '{campos[0]}' saiu da mesa.")
+        elif tipo == constants.CHAT:
+            nick = campos[0]
+            texto = ";".join(campos[1:])
+            print(f"\n[Chat] {nick}: {texto}")
         else:
             print(f"\n[?] {tipo};{';'.join(campos)}")
         print("> ", end="", flush=True)
@@ -129,6 +133,7 @@ def imprimir_ajuda():
         "  aceitar                 - aceita o pedido de aposta pendente\n"
         "  correr                  - corre do pedido de aposta pendente\n"
         "  aumentar                - reaumenta o pedido de aposta pendente\n"
+        "  chat <mensagem>         - envia mensagem no chat da mesa\n"
         "  sair                    - encerra a conexão\n"
         "  ajuda                   - mostra esta mensagem"
     )
@@ -191,6 +196,9 @@ def main():
                 cliente.enviar(constants.CORRER)
             elif comando == "aumentar":
                 cliente.enviar(constants.AUMENTAR)
+            elif comando == "chat":
+                if argumento:
+                    cliente.enviar(constants.CHAT, argumento)
             elif comando in ("sair", "exit", "quit"):
                 cliente.enviar(constants.SAIR)
                 break
