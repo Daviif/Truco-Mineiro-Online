@@ -90,7 +90,7 @@ mostrado e explicado na análise do Wireshark (Fase 2).
 
 ---
 
-## Fase 1 — Preparação do ambiente de captura ⏳ (em andamento)
+## Fase 1 — Preparação do ambiente de captura ✅ (concluída)
 
 **Estado do ambiente (verificado em 13/07/2026):**
 - ❌ Wireshark **não instalado** (`C:\Program Files\Wireshark\` ausente).
@@ -176,7 +176,7 @@ com pacotes `[PSH, ACK]` carregando o payload de texto do protocolo).
 
 ---
 
-## Fase 2 — Captura de tráfego ⏳ (roteiro pronto)
+## Fase 2 — Captura de tráfego ✅ (concluída)
 
 Objetivo: **um `.pcap` limpo, do começo ao fim**, e **5 prints** cobrindo os
 itens exigidos na seção 7 do enunciado.
@@ -219,8 +219,10 @@ itens exigidos na seção 7 do enunciado.
 **Verificação da Fase 2:** `.pcap` salvo contendo SYN no início e FIN no fim,
 mais os 5 prints coletados e legendados.
 
-**Status:** ambiente de captura validado (Fase 1). Captura limpa + os 5 prints
-**a coletar pela Pessoa A** (pendente — o roteiro acima está pronto para seguir).
+**Status: ✅ Concluída.** `.pcap` salvo em `capturas/captura-truco.pcapng` e os
+5 prints coletados em `capturas/prints/` (`1_handshake.png`, `2_portas.png`,
+`3_tcp_stream.png`, `4_troca_dados.png`, `5_encerramento.png`), cobrindo os 5
+itens da tabela acima.
 
 ## Fase 3 — Testes funcionais ✅ (concluída, exceto captura de prints)
 
@@ -302,12 +304,11 @@ lista de limitações está escrita. ✅
 |---|---|
 | 0 — Verificação do ambiente/protocolo | ✅ Concluída |
 | 1 — Preparação da captura (Wireshark/Npcap) | ✅ Concluída |
-| 2 — Captura de tráfego (.pcap + 5 prints) | ⏳ Ambiente pronto; **prints a coletar pela Pessoa A** |
+| 2 — Captura de tráfego (.pcap + 5 prints) | ✅ Concluída |
 | 3 — Testes funcionais (4 cenários) | ✅ Concluída (executados e registrados) |
 
-**Pendências manuais da Pessoa A:** apenas a **captura limpa no Wireshark e os
-5 prints** (Fase 2), seguindo o roteiro já documentado. Todo o resto está
-executado e registrado neste arquivo.
+**Pendências manuais da Pessoa A:** nenhuma — todas as fases (0 a 4) estão
+executadas e registradas neste arquivo.
 
 ## Fase 4 — Consolidação e entrega para a Pessoa B ✅ (concluída)
 
